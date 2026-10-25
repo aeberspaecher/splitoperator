@@ -9,11 +9,12 @@ import numpy as np
 from scipy.interpolate import BarycentricInterpolator
 
 # list of exported names:
-__all__ = ["Potential", "Potential1d", "PotentialSuperposition1d", "ConstantPotential", "BoxPotential",
+__all__ = ["Potential", "Potential1d", "PotentialSuperposition", "PotentialSuperposition1d", "ConstantPotential", "BoxPotential",
            "SmoothedBoxPotential", "WellPotential1d", "SquareWell1d", "MicrocavityRadialPotential",
            "MicrocyvityRadialPotential", "EckartPotential1d", "GaussBarrier1d", "Ramp1d", "MovingRamp1d",
            "HarmOscPot", "InterpolatingPotential1d", "RandomPotential1d", "ExpAbsorber1d",
-           "gaussian_random_field"]
+           "gaussian_random_field", "Potential2d", "HarmOscPot2d", "GaussBump2d", "StadiumPotential2d",
+           "RandomPotential2d", "BoundaryAbsorber2d"]
 
 
 #-----------------------------------------------------------------------
@@ -63,6 +64,9 @@ class PotentialSuperposition1d(Potential1d):
         return sum(pot.V(r, t) for pot in self._pots) + 0.0j
 
 
+PotentialSuperposition = PotentialSuperposition1d  # works in any dimension
+
+
 class ConstantPotential(Potential1d):
     """Constant Potential for free particle propagation.
     """
@@ -76,7 +80,8 @@ class ConstantPotential(Potential1d):
         self._V0 = V0
 
     def V(self, r, t):
-        return np.full_like(np.asarray(r, dtype=float), self._V0, dtype=complex)
+        shape = np.shape(r[0]) if isinstance(r, tuple) else np.shape(r)
+        return np.full(shape, self._V0, dtype=complex)
 
 
 class BoxPotential(Potential1d):
@@ -468,13 +473,21 @@ def gaussian_random_field(shape, spacing, corrFunc, rng=None):
     return field/field.std()
 
 
+def _normalized(field, normalize):
+    if(normalize == "max"):
+        return field/np.max(np.abs(field))
+    elif(normalize == "std"):
+        return field/np.std(field)
+    raise ValueError("normalize must be 'max' or 'std'")
+
+
 class RandomPotential1d(Potential1d):
     r"""Create a random potential from a given autocorrelation function.
     """
 
     isTimeDependent = False
 
-    def __init__(self, corrFunc, x, V0, rng=None):
+    def __init__(self, corrFunc, x, V0, rng=None, normalize="max"):
         """Create random potential.
 
         Parameters
@@ -484,14 +497,17 @@ class RandomPotential1d(Potential1d):
         x : array
             The (equidistant) grid values.
         V0 : float
-            Maximum absolute value of the potential.
+            Amplitude of the potential, see ``normalize``.
         rng : numpy.random.Generator or int, optional
             Random number generator or seed for reproducible potentials.
+        normalize : {"max", "std"}, optional
+            Scale the potential such that its maximum absolute value
+            ("max") or its standard deviation ("std") equals V0.
         """
 
         self._x = np.asarray(x, dtype=float)
         field = gaussian_random_field(len(self._x), self._x[1] - self._x[0], corrFunc, rng)
-        self._values = V0*field/np.max(np.abs(field))
+        self._values = V0*_normalized(field, normalize)
 
     def V(self, x, t):
         return np.interp(x, self._x, self._values) + 0.0j
@@ -542,3 +558,167 @@ class ExpAbsorber1d(Potential1d):
         imag = self._Aimag*(self._Aleft*np.exp(-np.abs(x - self._x0)/self._limag)
                             + self._Aright*np.exp(-np.abs(x - self._x1)/self._limag))
         return real + 1j*imag
+
+
+#-----------------------------------------------------------------------
+# 2d potentials: evaluated as V(r, t) with r = (X, Y)
+class Potential2d(Potential):
+    """Potentials in 2d. ``V(r, t)`` takes ``r = (X, Y)``.
+    """
+
+
+class HarmOscPot2d(Potential2d):
+    r"""Anisotropic harmonic oscillator $V = (\omega_x^2 (x-x_0)^2 + \omega_y^2 (y-y_0)^2)/2$.
+    """
+
+    isTimeDependent = False
+
+    def __init__(self, omegax, omegay=None, x0=0.0, y0=0.0):
+        self._wx = float(omegax)
+        self._wy = float(omegax if omegay is None else omegay)
+        self._x0, self._y0 = float(x0), float(y0)
+
+    def V(self, r, t):
+        x, y = r
+        return 0.5*(self._wx**2*(x - self._x0)**2 + self._wy**2*(y - self._y0)**2) + 0.0j
+
+
+class GaussBump2d(Potential2d):
+    r"""Gaussian bump $V = V_0 \exp(-((x-x_0)^2 + (y-y_0)^2)/2\sigma^2)$.
+    """
+
+    isTimeDependent = False
+
+    def __init__(self, x0, y0, V0, sigma):
+        self._x0, self._y0, self._V0, self._sigma = float(x0), float(y0), float(V0), float(sigma)
+
+    def V(self, r, t):
+        x, y = r
+        return self._V0*np.exp(-((x - self._x0)**2 + (y - self._y0)**2)/(2*self._sigma**2)) + 0.0j
+
+
+class StadiumPotential2d(Potential2d):
+    r"""Bunimovich stadium: a rectangle of length $2a$ and height $2R$ capped
+    by two half circles of radius $R$, centered at $(x_0, y_0)$.
+
+    The potential is zero inside and $V_0$ outside, with walls smoothed over a
+    width $w$: $V = V_0/2\,(1 + \tanh(d/w))$, where $d$ is the signed distance
+    to the boundary (negative inside). With $a = 0$ the stadium is a circle,
+    whose classical dynamics is integrable, while every stadium with $a > 0$
+    is chaotic.
+    """
+
+    isTimeDependent = False
+
+    def __init__(self, a, R, V0, w=0.1, x0=0.0, y0=0.0):
+        """Create a stadium potential.
+
+        Parameters
+        ----------
+        a : float
+            Half length of the straight segments.
+        R : float
+            Radius of the half circles.
+        V0 : float
+            Potential outside.
+        w : float, optional
+            Width of the smoothed walls.
+        x0, y0 : float, optional
+            Center.
+        """
+
+        self._a, self._R, self._V0, self._w = float(a), float(R), float(V0), float(w)
+        self._x0, self._y0 = float(x0), float(y0)
+
+    def signedDistance(self, r):
+        """Signed distance to the stadium boundary (negative inside)."""
+        x, y = r
+        x, y = np.abs(np.asarray(x) - self._x0), np.asarray(y) - self._y0
+        dx = np.maximum(x - self._a, 0.0)
+        return np.sqrt(dx**2 + y**2) - self._R
+
+    def V(self, r, t):
+        return 0.5*self._V0*(1 + np.tanh(self.signedDistance(r)/self._w)) + 0.0j
+
+
+class RandomPotential2d(Potential2d):
+    r"""Gaussian random potential with a given autocorrelation function.
+
+    The potential is drawn on a periodic grid and interpolated (with periodic
+    continuation) when evaluated elsewhere. Weak, smooth random potentials
+    cause *branched flow*: a wave entering such a medium splits into
+    narrow branches, cmp. Topinka et al., Nature 410, 183 (2001) and
+    Heller, Kaplan, Dahlen, Phys. Today 74(4), 44 (2021).
+    """
+
+    isTimeDependent = False
+
+    def __init__(self, corrFunc, x, y, V0, rng=None, normalize="std"):
+        """Create a random potential.
+
+        Parameters
+        ----------
+        corrFunc : callable
+            Correlation function C(dx, dy); must accept arrays.
+        x, y : array
+            Equidistant grid values along x and y.
+        V0 : float
+            Amplitude of the potential, see ``normalize``.
+        rng : numpy.random.Generator or int, optional
+            Random number generator or seed.
+        normalize : {"std", "max"}, optional
+            Scale the potential such that its standard deviation ("std") or
+            maximum absolute value ("max") equals V0.
+        """
+
+        from scipy.interpolate import RegularGridInterpolator
+
+        x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+        dx, dy = x[1] - x[0], y[1] - y[0]
+        field = gaussian_random_field((len(x), len(y)), (dx, dy), corrFunc, rng)
+        self.values = V0*_normalized(field, normalize)
+        self._x0, self._y0 = x[0], y[0]
+        self._Lx, self._Ly = len(x)*dx, len(y)*dy
+        # periodic continuation: append the first row and column at the end
+        ext = np.pad(self.values, ((0, 1), (0, 1)), mode="wrap")
+        self._interp = RegularGridInterpolator((np.append(x, x[0] + self._Lx), np.append(y, y[0] + self._Ly)), ext)
+
+    def V(self, r, t):
+        x, y = r
+        x = self._x0 + np.mod(np.asarray(x) - self._x0, self._Lx)
+        y = self._y0 + np.mod(np.asarray(y) - self._y0, self._Ly)
+        return self._interp(np.stack([x, y], axis=-1)) + 0.0j
+
+
+class BoundaryAbsorber2d(Potential2d):
+    r"""Absorbing layer along the edges of a rectangular grid.
+
+    Inside a layer of width $l$ along each edge, the potential is
+    $-i\eta\,((l - d)/l)^2$ with $d$ the distance to the edge. The quadratic
+    onset keeps reflections small.
+    """
+
+    isTimeDependent = False
+
+    def __init__(self, size, width, strength):
+        """Create an absorbing boundary layer.
+
+        Parameters
+        ----------
+        size : tuple
+            Grid boundaries ((x_min, x_max), (y_min, y_max)).
+        width : float
+            Width l of the absorbing layer.
+        strength : float
+            Maximum absorption rate eta (positive).
+        """
+
+        (self._x0, self._x1), (self._y0, self._y1) = size
+        self._l, self._eta = float(width), float(strength)
+
+    def V(self, r, t):
+        x, y = r
+        d = np.minimum.reduce([np.asarray(x) - self._x0, self._x1 - np.asarray(x),
+                               np.asarray(y) - self._y0, self._y1 - np.asarray(y)])
+        ramp = np.clip((self._l - d)/self._l, 0.0, None)
+        return -1j*self._eta*ramp**2

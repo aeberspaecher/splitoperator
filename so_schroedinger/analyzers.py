@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 # this eats a lot of memory.
 
 # list of exported names:
-__all__ = ["AutoCorrelation", "Observables", "EigenfunctionBuilder"]
+__all__ = ["AutoCorrelation", "Observables", "EigenfunctionBuilder", "EigenstateFilter"]
 
 
 class Analyzer:
@@ -287,3 +287,47 @@ class EigenfunctionBuilder(Analyzer):
         plt.plot(self._xGrid, np.imag(psiEigen), lw=1.5, c="gray", ls="--", label=r"$\mathrm{Im}\,\psi_E(x)$ for $E=%s$"%E)
         plt.legend()
         plt.show()
+
+
+class EigenstateFilter:
+    r"""Build eigenstates for given energies on the fly, without storing the
+    wavefunction at every time step (needed in 2d).
+
+    For each energy $E$ the filter accumulates
+    $\varphi_E = \int_0^{T} w(t)\, e^{iEt}\,\psi(t)\,\mathrm{d}t$,
+    with a window function $w$ that decays from 1 at $t = 0$ to 0 at
+    $t = T$. Cmp. Feit et al., J. Comp. Phys. 47, 412 (1982).
+    """
+
+    def __init__(self, energies, tMax):
+        """Create the filter.
+
+        Parameters
+        ----------
+        energies : array-like
+            Energies to filter for.
+        tMax : float
+            Total propagation time, needed for the window function.
+        """
+
+        self.energies = np.atleast_1d(np.asarray(energies, dtype=float))
+        self.tMax = float(tMax)
+        self._phi = None
+
+    def addData(self, psi, t, dt):
+        """Add the wavefunction at time t; dt is the time step between calls."""
+
+        t = abs(t)
+        if(t > self.tMax):
+            return
+        if(self._phi is None):
+            self._phi = np.zeros((len(self.energies),) + np.shape(psi), dtype=complex)
+        w = 0.5*(1 + np.cos(np.pi*t/self.tMax))*abs(dt)  # half of a Hann window
+        for i, E in enumerate(self.energies):
+            self._phi[i] += w*np.exp(1j*E*t)*psi
+
+    def eigenstates(self, dV=1.0):
+        """Return the filtered states, normalized for the volume element dV."""
+
+        norms = np.sqrt(np.sum(np.abs(self._phi)**2, axis=tuple(range(1, self._phi.ndim)))*dV)
+        return self._phi/norms.reshape((-1,) + (1,)*(self._phi.ndim - 1))
