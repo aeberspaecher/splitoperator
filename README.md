@@ -1,6 +1,7 @@
 # so_schroedinger
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/aeberspaecher/splitoperator/main?urlpath=lab/tree/notebooks)
+[![JupyterLite](https://jupyterlite.rtfd.io/en/latest/_static/badge.svg)](https://aeberspaecher.github.io/splitoperator/lab/index.html)
 
 Split operator time propagation for the time-dependent Schrödinger equation,
 written in pure Python on top of NumPy's FFT.
@@ -153,10 +154,14 @@ in memory; such an animation can be drawn only once. See
 
 The `notebooks/` folder contains illustrated examples. They run in the
 browser without installing anything: on Binder (all notebooks, with the
-package preinstalled; the first start takes a few minutes) or on Google
-Colab (one notebook at a time; its first cell installs the package).
+package preinstalled; the first start takes a few minutes), on Google
+Colab (one notebook at a time; its first cell installs the package) or in
+JupyterLite, where Python itself runs in the browser (Pyodide). JupyterLite
+starts in seconds and needs no server, but it is slower than native Python
+and the animation cells take a while.
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/aeberspaecher/splitoperator/main?urlpath=lab/tree/notebooks)
+[![JupyterLite](https://jupyterlite.rtfd.io/en/latest/_static/badge.svg)](https://aeberspaecher.github.io/splitoperator/lab/index.html)
 
 | Notebook | Content | |
 |---|---|---|
