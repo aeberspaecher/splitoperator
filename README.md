@@ -51,9 +51,34 @@ anim = so.animate2d(grid, so.SplitOperator(), dt=0.004, n_frames=50, steps_per_f
 
 2d potentials: `HarmOscPot2d`, `GaussBump2d`, `StadiumPotential2d`,
 `RandomPotential2d` (Gaussian random field with a given correlation
-function) and `BoundaryAbsorber2d`. `analyzers.EigenstateFilter` builds
-eigenstates by energy filtering on the fly, without storing the whole time
-series.
+function) and `BoundaryAbsorber2d`.
+
+## Analyzers
+
+`so_schroedinger.analyzers` collects data during the propagation. Each
+analyzer is called with the grid, `analyzer(grid)`, so it can be passed as
+`callback` (or in a list of callbacks) to `propagate()` or in the `analyzers` list of `animate1d()` and
+`animate2d()`. All of them work in 1d and 2d and do not plot anything.
+
+```python
+obs = so.analyzers.Observables()
+corr = so.analyzers.AutoCorrelation()
+obs(grid)  # record the initial state
+corr(grid)
+prop.propagate(grid, dt=0.01, n_steps=4096, callback=[obs, corr])
+
+obs.t, obs.norm, obs.position, obs.momentum, obs.width  # arrays
+E, spectrum = corr.spectrum()  # peaks at the eigenenergies
+```
+
+- `Observables`: norm, ⟨x⟩, ⟨p⟩ and Δx versus time
+- `AutoCorrelation`: C(t) = ⟨ψ₀|ψ(t)⟩ and the spectrum from it
+- `EigenstateFilter`: eigenstates for given energies, filtered on the fly
+- `EigenfunctionBuilder`: stores ψ(t) to build eigenstates for energies
+  chosen afterwards
+- `IntegratedDensity`: ∫|ψ|² dt
+- `Flux`: probability flux through a point (1d) or line (2d), and its time
+  integral, e.g. the transmission through a barrier
 
 ## Animations
 
@@ -95,8 +120,8 @@ Install the extras with `pip install ".[notebooks]"` and start
   potentials with a prescribed correlation function, absorbing boundaries
 - `so_schroedinger.wavepackets`: Gaussian wavepackets (1d, 2d) and coherent states
 - `so_schroedinger.timeprop`: the split operator propagator
-- `so_schroedinger.analyzers`: autocorrelation spectra, expectation values,
-  eigenfunctions from time series
+- `so_schroedinger.analyzers`: expectation values, autocorrelation spectra,
+  eigenstates, time integrated density and flux
 - `so_schroedinger.animation`: Matplotlib animations of the propagation
 
 ## Tests
@@ -120,6 +145,9 @@ variables, `CapWords` for classes. Physics symbols keep their usual capitals
 ruff check .
 ruff format .
 ```
+
+Version 0.4.0 reworked the analyzers: they take the grid instead of
+`(psi, V, t)`, no longer plot, and return arrays instead.
 
 Version 0.3.0 renamed the former camelCase API, e.g. `psiNorm` →
 `psi_norm`, `expectationX()` → `expectation_x()`, `nSteps` → `n_steps`,

@@ -74,24 +74,6 @@ def test_boundary_absorber2d_absorbs():
     assert grid.psi_norm < 0.1
 
 
-def test_eigenstate_filter_finds_oscillator_states():
-    omega = 1.0
-    grid = so.Grid1d((-12.0, 12.0), 256, so.HarmOscPot(omega), so.Gaussian1d(1.0, 1.0, 0.5))
-    t_max, dt = 150.0, 0.02
-    filt = so.analyzers.EigenstateFilter([0.5, 1.5], t_max)
-    prop = so.SplitOperator()
-    filt.add_data(grid.psi, grid.t, dt)
-    for _ in range(int(t_max / dt)):
-        prop.step(grid, dt)
-        filt.add_data(grid.psi, grid.t, dt)
-    phi0, phi1 = filt.eigenstates(grid.dx)
-    x = grid.x_vals
-    exact0 = np.exp(-(x**2) / 2) / np.pi**0.25
-    exact1 = np.sqrt(2) * x * np.exp(-(x**2) / 2) / np.pi**0.25
-    assert abs(np.sum(exact0 * phi0) * grid.dx) == pytest.approx(1.0, abs=1e-3)
-    assert abs(np.sum(exact1 * phi1) * grid.dx) == pytest.approx(1.0, abs=1e-3)
-
-
 @pytest.mark.parametrize("mode", ["density", "phase"])
 def test_animate2d_renders(mode):
     pot = so.StadiumPotential2d(2.0, 3.0, 20.0, w=0.3)

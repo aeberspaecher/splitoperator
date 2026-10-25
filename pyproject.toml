@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "so_schroedinger"
-version = "0.3.0"
+version = "0.4.0"
 description = "Split operator time propagation for the time-dependent Schroedinger equation"
 readme = "README.md"
 license = "BSD-2-Clause"
