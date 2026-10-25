@@ -1,4 +1,4 @@
-"""Simple quantum time propagation.
+"""Simple quantum time propagation in 1d and 2d.
 
 All physical quantities are in (Hartree) atomic units
 (numerical values: hbar = e = m = k_B = 1; c=1/alpha), cmp. also
@@ -52,6 +52,8 @@ class SplitOperator(Propagator):
         self._stepcount = 0
         self._doRenormalize = int(renormalizeEveryNSteps)
         self.groundStateEnergy = None
+        self._kinCache = (None, None, None)  # (kSquared array, dt, exp(-i k^2 dt/2))
+        self._potCache = (None, None, None)  # (V array, dt, exp(-i V dt))
 
     def step(self, grid, dt):
         """Advance time by one step dt.
@@ -114,7 +116,11 @@ class SplitOperator(Propagator):
         space (where the position operator is diagonal).
         """
 
-        grid.psi = grid.psi*np.exp(-1j*grid.V*dt)
+        V, dtCached, factor = self._potCache
+        if(V is not grid.V or dtCached != dt):  # the grid creates a new array on each update
+            factor = np.exp(-1j*grid.V*dt)
+            self._potCache = (grid.V, dt, factor)
+        grid.psi = grid.psi*factor
 
     def _applyKinOperatorPart(self, grid, dt):
         """Apply kinetic energy operator part of the propagation.
@@ -124,6 +130,10 @@ class SplitOperator(Propagator):
         -> inverse Fourier transform.
         """
 
-        Psi = np.fft.fft(grid.psi)
-        Psi *= np.exp(-1j*grid.kVals**2*dt/2.0)
-        grid.psi = np.fft.ifft(Psi)
+        kSquared, dtCached, factor = self._kinCache
+        if(kSquared is not grid.kSquared or dtCached != dt):
+            factor = np.exp(-1j*grid.kSquared*dt/2.0)
+            self._kinCache = (grid.kSquared, dt, factor)
+        Psi = np.fft.fftn(grid.psi)
+        Psi *= factor
+        grid.psi = np.fft.ifftn(Psi)

@@ -8,7 +8,7 @@ import logging
 
 import numpy as np
 
-__all__ = ["WavePacket", "WavepacketSuperposition", "Gaussian1d", "Gaussian1dEnergy", "CoherentState"]
+__all__ = ["WavePacket", "WavepacketSuperposition", "Gaussian1d", "Gaussian1dEnergy", "CoherentState", "Gaussian2d"]
 
 log = logging.getLogger(__name__)
 
@@ -142,3 +142,29 @@ class CoherentState(Gaussian1d):
 
         super().__init__(x0, np.sqrt(1/float(omega)), p0)
         log.info("Created a coherent state for omega = %s", float(omega))
+
+
+class Gaussian2d(WavePacket):
+    """A Gaussian wavepacket in two dimensions, evaluated as ``psi((X, Y))``.
+    """
+
+    def __init__(self, x0, y0, sigmax, sigmay=None, px=0.0, py=0.0):
+        r"""Create a 2d Gaussian wavepacket, the product of two 1d Gaussians
+        $\psi = \psi_x(x)\,\psi_y(y)$.
+
+        Parameters
+        ----------
+        x0, y0 : float
+            Center position.
+        sigmax, sigmay : float
+            Position space widths; sigmay defaults to sigmax.
+        px, py : float, optional
+            Center momentum.
+        """
+
+        self.gx = Gaussian1d(x0, sigmax, px)
+        self.gy = Gaussian1d(y0, sigmax if sigmay is None else sigmay, py)
+
+    def psi(self, r):
+        x, y = r
+        return self.gx.psi(x)*self.gy.psi(y)

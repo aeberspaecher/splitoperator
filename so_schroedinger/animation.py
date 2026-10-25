@@ -8,9 +8,10 @@ objects. In a Jupyter notebook, display them with
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import hsv_to_rgb
 from matplotlib.animation import FuncAnimation
 
-__all__ = ["animate1d"]
+__all__ = ["animate1d", "animate2d", "complex_to_rgb"]
 
 
 def animate1d(grid, propagator, dt, nFrames, stepsPerFrame=1, scalePot=None, showReIm=False,
@@ -129,3 +130,115 @@ def _record(grid, propagator, dt, nFrames, stepsPerFrame, analyzers):
                 analyzer.addData(grid.psi.copy(), grid.V.copy(), grid.t)
         frames.append((grid.t, grid.psi.copy(), grid.V.copy() if grid.updatePot else None))
     return frames
+
+
+def complex_to_rgb(psi, vmax=None):
+    """Color a complex array: hue shows the phase, brightness the modulus.
+
+    Parameters
+    ----------
+    psi : complex array
+    vmax : float, optional
+        Modulus mapped to full brightness; defaults to max(|psi|).
+    """
+
+    amp = np.abs(psi)
+    vmax = np.max(amp) if vmax is None else vmax
+    hsv = np.empty(np.shape(psi) + (3,))
+    hsv[..., 0] = (np.angle(psi)/(2*np.pi)) % 1.0
+    hsv[..., 1] = 1.0
+    hsv[..., 2] = np.clip(amp/vmax, 0.0, 1.0)
+    return hsv_to_rgb(hsv)
+
+
+def animate2d(grid, propagator, dt, nFrames, stepsPerFrame=1, mode="density", potentialLevels=5,
+              cmap="magma", vmax=None, interval=40, ax=None, closeFigure=True):
+    r"""Animate the propagation of a wavepacket on a 2d grid.
+
+    As in :func:`animate1d`, the propagation is done up front and ``grid``
+    holds the final state afterwards.
+
+    Parameters
+    ----------
+    grid : Grid2d
+        The grid to propagate.
+    propagator : Propagator
+        E.g. a :class:`SplitOperator` instance.
+    dt : complex
+        Time step.
+    nFrames : int
+        Number of frames.
+    stepsPerFrame : int, optional
+        Time steps per frame.
+    mode : {"density", "phase"}, optional
+        Show $\vert\psi\vert^2$ with a colormap, or $\psi$ with the phase as
+        hue and $\vert\psi\vert$ as brightness.
+    potentialLevels : int or sequence, optional
+        Contour levels of the real part of the potential drawn on top; 0 or
+        None for no contours.
+    cmap : str, optional
+        Colormap for mode "density".
+    vmax : float, optional
+        Value for full color (density) or brightness (modulus); defaults to
+        the maximum of the initial state.
+    interval : int, optional
+        Delay between frames in milliseconds.
+    ax : matplotlib Axes, optional
+        Axes to draw into. A new figure is created if omitted.
+    closeFigure : bool, optional
+        Close the figure so that notebooks do not show an extra static image.
+
+    Returns
+    -------
+    anim : matplotlib.animation.FuncAnimation
+    """
+
+    if(mode not in ("density", "phase")):
+        raise ValueError("mode must be 'density' or 'phase'")
+    if(ax is None):
+        fig, ax = plt.subplots(figsize=(6, 6*grid.y_extent/grid.x_extent))
+    else:
+        fig = ax.figure
+
+    frames = []
+    for i in range(int(nFrames)):
+        if(i > 0):
+            propagator.propagate(grid, dt, stepsPerFrame)
+        data = grid.density.astype(np.float32) if mode == "density" else grid.psi.astype(np.complex64)
+        frames.append((grid.t, data, np.real(grid.V).copy() if grid.updatePot else None))
+
+    def image(data):
+        if(mode == "density"):
+            return data.T
+        return complex_to_rgb(data.T, vmax)
+
+    if(vmax is None):
+        vmax = np.max(np.abs(frames[0][1]))
+    im = ax.imshow(image(frames[0][1]), origin="lower", extent=grid.extent, cmap=cmap,
+                   vmin=0.0, vmax=vmax, interpolation="bilinear")
+    contours = [None]
+
+    def drawContours(V):
+        if(potentialLevels):
+            if(contours[0] is not None):
+                contours[0].remove()
+            contours[0] = ax.contour(grid.xVals, grid.yVals, V.T, levels=potentialLevels,
+                                     colors="white", linewidths=0.6, alpha=0.6)
+
+    drawContours(np.real(grid.V) if frames[0][2] is None else frames[0][2])
+    timeText = ax.text(0.02, 0.97, "", transform=ax.transAxes, va="top", color="white")
+    ax.set_xlabel("$x$")
+    ax.set_ylabel("$y$")
+
+    def update(i):
+        t, data, V = frames[i]
+        im.set_data(image(data))
+        if(V is not None):
+            drawContours(V)
+        timeText.set_text(f"$t = {t:.2f}$")
+        return [im, timeText]
+
+    anim = FuncAnimation(fig, update, frames=len(frames), interval=interval, blit=False, repeat=False)
+    if(closeFigure):
+        plt.close(fig)
+    return anim
