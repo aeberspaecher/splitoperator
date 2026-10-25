@@ -88,12 +88,14 @@ class Observables(Analyzer):
     - ``position``: $\langle x\rangle$, in 2d $(\langle x\rangle, \langle y\rangle)$
     - ``momentum``: $\langle p\rangle$, in 2d $(\langle p_x\rangle, \langle p_y\rangle)$
     - ``width``: $\Delta x$, in 2d $(\Delta x, \Delta y)$
+    - ``energy``: $\langle H\rangle$ (without the absorber); constant for
+      time-independent potentials, so its drift is a check of the time step
 
     In 2d, ``position``, ``momentum`` and ``width`` have shape ``(n, 2)``.
     """
 
     def __init__(self):
-        self._data = {"t": [], "norm": [], "position": [], "momentum": [], "width": []}
+        self._data = {"t": [], "norm": [], "position": [], "momentum": [], "width": [], "energy": []}
 
     def add_data(self, grid):
         self._data["t"].append(grid.t)
@@ -105,6 +107,7 @@ class Observables(Analyzer):
             self._data["position"].append(grid.expectation_r())
             self._data["width"].append(grid.width_r())
         self._data["momentum"].append(grid.expectation_p())
+        self._data["energy"].append(grid.energy())
 
     def __len__(self):
         return len(self._data["t"])
@@ -133,6 +136,11 @@ class Observables(Analyzer):
     def width(self):
         r"""$\Delta x$, in 2d $(\Delta x, \Delta y)$."""
         return np.array(self._data["width"])
+
+    @property
+    def energy(self):
+        r"""$\langle H\rangle$."""
+        return np.array(self._data["energy"])
 
 
 class AutoCorrelation(Analyzer):

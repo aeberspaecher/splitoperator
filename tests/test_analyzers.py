@@ -35,6 +35,15 @@ def test_observables_free_gaussian_1d():
     assert obs.position == pytest.approx(x0 + p0 * t, abs=1e-6)
     assert obs.momentum == pytest.approx(np.full(11, p0), abs=1e-6)
     assert obs.width == pytest.approx(sigma / np.sqrt(2) * np.sqrt(1 + t**2 / sigma**4), rel=1e-6)
+    assert obs.energy == pytest.approx(np.full(11, p0**2 / 2 + 1 / (4 * sigma**2)), rel=1e-8)
+
+
+def test_observables_energy_is_conserved_at_a_barrier():
+    grid = so.Grid1d((-40.0, 40.0), 2**11, so.GaussBarrier1d(0.0, 2.0, 0.5), so.Gaussian1d(-10.0, 2.0, 2.0))
+    obs = Observables()
+    obs(grid)
+    so.SplitOperator().propagate(grid, 0.01, 1000, callback=obs, every=100)
+    assert obs.energy == pytest.approx(np.full(11, obs.energy[0]), rel=1e-4)
 
 
 def test_observables_free_gaussian_2d():
