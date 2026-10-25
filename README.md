@@ -42,7 +42,9 @@ them to one thread. Other FFT libraries plug in through SciPy's backend
 mechanism, e.g. pyFFTW:
 
 ```python
-import pyfftw.interfaces.scipy_fft, scipy.fft
+import pyfftw.interfaces.scipy_fft
+import scipy.fft
+
 scipy.fft.set_global_backend(pyfftw.interfaces.scipy_fft)
 ```
 
