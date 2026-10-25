@@ -4,18 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "so_schroedinger"
-version = "0.4.0"
+version = "0.5.0"
 description = "Split operator time propagation for the time-dependent Schroedinger equation"
 readme = "README.md"
 license = "BSD-2-Clause"
 license-files = ["LICENSE"]
+keywords = ["quantum mechanics", "Schroedinger equation", "split operator", "wavepacket", "physics"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
 authors = [{ name = "Alexander Eberspächer" }]
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.23", "scipy>=1.10", "matplotlib>=3.6"]
 
+[project.urls]
+Documentation = "https://aeberspaecher.github.io/splitoperator/"
+Source = "https://github.com/aeberspaecher/splitoperator"
+Notebooks = "https://aeberspaecher.github.io/splitoperator/lite/lab/index.html"
+
 [project.optional-dependencies]
 test = ["pytest", "nbformat", "nbclient", "ipykernel"]
 notebooks = ["jupyterlab", "ipykernel", "ipywidgets"]
+docs = ["mkdocs-material", "mkdocstrings[python]"]
 
 [tool.setuptools]
 packages = ["so_schroedinger"]
