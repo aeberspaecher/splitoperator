@@ -23,9 +23,10 @@ def test_animation_renders_and_is_repeatable():
 def test_time_dependent_potential_and_gif(tmp_path):
     pot = so.MovingRamp1d(5.0, 2.0, 0.5, True, "sin", 1.0, 2.0, 0.0)
     grid = make_grid(pot)
-    observables = so.analyzers.Observables(grid.x_vals, grid.psi, grid.V)
+    observables = so.analyzers.Observables()
     anim = so.animate1d(grid, so.SplitOperator(), dt=0.01, n_frames=4, analyzers=[observables])
     out = tmp_path / "movie.gif"
     anim.save(out, writer="pillow", fps=10)
     assert out.stat().st_size > 0
-    assert len(observables._t_samples) == 4
+    assert len(observables) == 4
+    assert observables.t[-1] == grid.t

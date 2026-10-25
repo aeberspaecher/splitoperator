@@ -1,335 +1,404 @@
-"""Analyzing tools for wavepacket dynamics."""
+r"""Analyze wavepacket dynamics during time propagation.
 
-import matplotlib.pyplot as plt
+An analyzer collects data from a grid at the times it is called with that
+grid. Every analyzer is callable as ``analyzer(grid)``, so it can be passed
+directly as ``callback`` to ``SplitOperator.propagate()`` or in the
+``analyzers`` list of the animation functions:
+
+>>> obs = Observables()
+>>> obs(grid)  # record the initial state
+>>> prop.propagate(grid, dt, n_steps, callback=obs, every=10)
+>>> obs.t, obs.position
+
+All analyzers work on 1d and 2d grids. Time integrals use the trapezoidal
+rule on the sample times, which need not be equidistant (except for
+``AutoCorrelation.spectrum()``). Analyzers copy what they need, so the grid
+may change after each call. None of them plots or prints anything.
+"""
+
 import numpy as np
-from numpy.fft import fft, fftfreq, fftshift
-from scipy.integrate import simpson
-from scipy.signal.windows import blackman, hamming, hann
-
-# FIXME: so far, all analyzers store their psi data individually.
-# this eats a lot of memory.
+from scipy.integrate import cumulative_trapezoid, trapezoid
+from scipy.signal import get_window
 
 # list of exported names:
-__all__ = ["AutoCorrelation", "Observables", "EigenfunctionBuilder", "EigenstateFilter"]
+__all__ = [
+    "Analyzer",
+    "Observables",
+    "AutoCorrelation",
+    "EigenstateFilter",
+    "EigenfunctionBuilder",
+    "IntegratedDensity",
+    "Flux",
+]
 
 
 class Analyzer:
-    """Analyze wavefunctions and compute quantities derived from
-    wavefunctions.
+    """Base class: collects data from a grid each time it is called."""
 
-    This class defines a method allows adding a wavefunction and a potential
-    at a given time. Everything that happens with this data is a matter of
-    subclasses.
+    def add_data(self, grid):
+        """Take data from the grid at its current time ``grid.t``."""
+
+        raise NotImplementedError
+
+    def __call__(self, grid):
+        self.add_data(grid)
+
+
+class _Trapezoid:
+    """Trapezoidal weights for samples that arrive one at a time.
+
+    The weight of a sample, $(t_{i+1} - t_{i-1})/2$, is known only once the
+    next sample time is known, so each sample is held back by one call.
     """
 
-    def __init__(self, x_vals, psi0, V0):
-        """Create and initialize an analyzer object.
-        Information about the grid will be infered from the given data.
+    def __init__(self):
+        self._t_before = None  # time of the sample before the pending one
+        self._pending = None  # (t, item)
 
-        Paramters
-        ---------
-        x_vals : array
-            The grid.
-        psi0 : array
-            Initial wavefunction.
-        V0 : array
-            Initial potential.
-        """
+    def push(self, t, item):
+        """Add a sample; return the previous ``(t, item, weight)`` or None."""
 
-        self._x_grid = x_vals
-        self._psi0 = psi0
-        self._V0 = V0
-        self._grid_samples = np.shape(V0)  # dimension(s) of grid array
-        self._x_extent = np.zeros(len(self._grid_samples))
-        self._dx = np.zeros(len(self._grid_samples))
-        self._is1d = np.size(self._grid_samples) == 1
+        done = None
+        if self._pending is not None:
+            t_pend, item_pend = self._pending
+            t_before = t_pend if self._t_before is None else self._t_before
+            done = (t_pend, item_pend, (t - t_before) / 2.0)
+            self._t_before = t_pend
+        self._pending = (t, item)
+        return done
 
-        # compute grid spacing and extent
-        if self._is1d:
-            self._x_extent[0] = x_vals[-1] - x_vals[0]
-            self._dx[0] = x_vals[1] - x_vals[0]
-        else:
-            self._x_extent[0] = x_vals[0, -1] - x_vals[0, 0]
-            self._x_extent[1] = x_vals[1, -1] - x_vals[1, 0]
-            self._dx[0] = x_vals[0, 1] - x_vals[0, 0]
-            self._dx[1] = x_vals[1, 1] - x_vals[1, 0]
+    def last(self):
+        """The held back sample with its weight as last sample, or None."""
 
-        # TODO: what's the difference between dx = (x_max - x_min)/N and dx = x_1 - x_0?
-
-        self._t_samples = []
-        self._psi_samples = []
-        self._V_samples = []
-
-    def add_data(self, psi, V, t):
-        r"""Add data at a given instant.
-
-        Parameters
-        ----------
-        psi : array
-            Discrete wavefunction $\psi(r, t)$.
-        V : array
-            Discrete potential $V(r, t)$
-        t : float
-            Time.
-        """
-
-        self._psi_samples.append(psi)
-        self._V_samples.append(V)
-        self._t_samples.append(np.abs(t))  # absolute value fixes this for imaginary time evolution
-
-    def process_data(self):
-        """Compute what has to be computed.
-        Overwritten by derived classes.
-        """
-
-        raise NotImplementedError("Do not call this method of the *base* class.")
+        if self._pending is None or self._t_before is None:
+            return None
+        t_pend, item_pend = self._pending
+        return (t_pend, item_pend, (t_pend - self._t_before) / 2.0)
 
 
 # -----------------------------------------------------------------------
-# derived classes:
-class AutoCorrelation(Analyzer):
-    """Compute autocorrelation data and extract the spectrum."""
-
-    def process_data(self):
-        """Compute overlap data computed from the wavefunctions given."""
-
-        self._overlap = []
-        for psi in self._psi_samples:
-            if self._is1d:
-                overlap = simpson(
-                    self._psi0 * np.conj(psi), dx=self._dx[0]
-                )  # simpson() works with complex-valued samples
-                self._overlap.append(overlap)
-            else:
-                raise NotImplementedError("2d overlap integrals are not implemented yet!")  # TODO: implement
-
-    def plot_corr(self):
-        """Plot correlation function $C(t)$."""
-
-        plt.plot(self._t_samples, np.abs(self._overlap), c="b", lw=2, ls="-")
-        plt.title(r"$\vert C(t)\vert$")
-        plt.show()
-
-    def plot_spectrum(self, window="hamming"):
-        """Plot Fourier transform of $C(t)$.
-
-        As the time series is not periodic in any way, windowing is done before
-        the Fourier transform is computed.
-
-        Parameters
-        ----------
-        window : string, optional
-            "hann", "hamming" or "blackman" for Hann, Hamming or Blackman
-            window functions, respevtively. Defaults to the Hamming window.
-        """
-
-        # TODO: what about complex frequencies?
-
-        if window == "hann":
-            win_func = hann
-        elif window == "hamming":
-            win_func = hamming
-        elif window == "blackman":
-            win_func = blackman
-        else:
-            raise ValueError("Illegal window option in plot_spectrum()!")
-
-        dt = self._t_samples[1] - self._t_samples[0]  # assume equal dt for all steps
-        n_time = len(self._t_samples)
-        freqs = 2 * np.pi * fftshift(fftfreq(n_time, dt))
-        windowed_signal = np.asarray(self._overlap) * win_func(
-            n_time
-        )  # windowing -> make function periodic on time interval
-        c_omega = np.abs(fftshift(fft(windowed_signal))) ** 2
-        plt.plot(freqs, c_omega, c="b", lw=2, ls="-")
-        plt.title(r"$\vert\tilde{C}(\omega)\vert^2$")
-        plt.show()
-
-
 class Observables(Analyzer):
-    """Compute observables from data."""
+    r"""Record norm and expectation values.
 
-    def process_data(self, pos_exp=True, mom_exp=True):
-        """Compute position and momentum expectation values."""
+    After a series of calls, the attributes hold arrays with one entry per
+    call:
 
-        # TODO: fix momenta. something is wrong here (units?)
+    - ``t``: times
+    - ``norm``: $\Vert\psi\Vert$ (decreases with absorbers)
+    - ``position``: $\langle x\rangle$, in 2d $(\langle x\rangle, \langle y\rangle)$
+    - ``momentum``: $\langle p\rangle$, in 2d $(\langle p_x\rangle, \langle p_y\rangle)$
+    - ``width``: $\Delta x$, in 2d $(\Delta x, \Delta y)$
 
-        self._pos_exp = []
-        self._mom_exp = []
-
-        if mom_exp and self._is1d:
-            k_vals = 2 * np.pi * fftshift(fftfreq(self._grid_samples[0], self._dx[0]))  # *2pi means 1/lambda --> k = p
-
-        for psi in self._psi_samples:
-            if self._is1d:
-                if pos_exp:
-                    x_exp = simpson(self._x_grid * np.abs(psi) ** 2, dx=self._dx[0])
-                    self._pos_exp.append(x_exp)
-                if mom_exp:  # compute in momentum space (where the momentum operator is just a multiplication)
-                    Psi = fftshift(fft(psi)) / np.sqrt(self._grid_samples[0])
-                    # ensure correct *physical* norm of k-space wave function:
-                    Psi_norm = simpson(abs(Psi) ** 2, x=k_vals)
-                    Psi /= np.sqrt(Psi_norm)
-                    p_exp = simpson(k_vals * np.abs(Psi) ** 2, dx=abs(k_vals[1] - k_vals[0]))
-                    self._mom_exp.append(p_exp)
-                    # TODO: maybe we can leave out the fftshift() call?
-            else:
-                raise NotImplementedError("2d expectation values are not implemented yet!")  # TODO: implement
-
-    def plot_data(self):
-        """Plot available data."""
-
-        if len(self._pos_exp) > 0 and len(self._mom_exp) > 0:
-            fig = plt.figure()
-            ax1 = fig.add_subplot(111)
-            ax2 = ax1.twinx()
-            ax1.plot(self._t_samples, self._pos_exp, ls="-", c="b", lw=2)
-            ax2.plot(self._t_samples, self._mom_exp, ls="--", c="r", lw=2)
-            ax1.set_xlabel("$t$")
-            ax1.set_ylabel(r"$\langle x\rangle$", color="b")
-            ax2.set_ylabel(r"$\langle p\rangle$", color="r")
-            for tl in ax1.get_yticklabels():
-                tl.set_color("b")
-            for tl in ax2.get_yticklabels():
-                tl.set_color("r")
-
-        if len(self._pos_exp) > 0 and len(self._mom_exp) == 0:  # plot only position
-            fig = plt.figure()
-            ax1 = fig.add_subplot(111)
-            ax1.plot(self._t_samples, self._pos_exp, ls="-", c="b", lw=2)
-            ax1.set_xlabel("$t$")
-            ax1.set_ylabel(r"$\langle x\rangle$")
-
-        if len(self._pos_exp) == 0 and len(self._mom_exp) > 0:  # plot only momentum
-            fig = plt.figure()
-            ax1 = fig.add_subplot(111)
-            ax1.plot(self._t_samples, self._mom_exp, ls="--", c="r", lw=2)
-            ax1.set_xlabel("$t$")
-            ax1.set_ylabel(r"$\langle p\rangle$")
-
-        plt.show()
-
-
-class EigenfunctionBuilder(Analyzer):
-    """Construct an eigenstate with given energy from time propagation data.
-
-    For the construction of eigenstates, compare
-    Feit et al., J. Comp. Phys. 47, 412 (1982) and the excellent textbook
-    "An introduction to time dependent Quantum Mechanics" by D. Tannor.
+    In 2d, ``position``, ``momentum`` and ``width`` have shape ``(n, 2)``.
     """
 
-    def process_data(self):
-        """Nothing to do here. Use compute_eigenfunction() instead."""
+    def __init__(self):
+        self._data = {"t": [], "norm": [], "position": [], "momentum": [], "width": []}
 
-        pass
+    def add_data(self, grid):
+        self._data["t"].append(grid.t)
+        self._data["norm"].append(grid.psi_norm)
+        if grid.dim == 1:
+            self._data["position"].append(grid.expectation_x())
+            self._data["width"].append(grid.width_x())
+        else:
+            self._data["position"].append(grid.expectation_r())
+            self._data["width"].append(grid.width_r())
+        self._data["momentum"].append(grid.expectation_p())
 
-    def compute_eigenfunction(self, E, window="hamming"):
-        r"""Build the eigenfunction that belongs to the energy $E$.
+    def __len__(self):
+        return len(self._data["t"])
+
+    @property
+    def t(self):
+        """Sample times."""
+        return np.array(self._data["t"])
+
+    @property
+    def norm(self):
+        r"""$\Vert\psi\Vert$."""
+        return np.array(self._data["norm"])
+
+    @property
+    def position(self):
+        r"""$\langle x\rangle$, in 2d $(\langle x\rangle, \langle y\rangle)$."""
+        return np.array(self._data["position"])
+
+    @property
+    def momentum(self):
+        r"""$\langle p\rangle$, in 2d $(\langle p_x\rangle, \langle p_y\rangle)$."""
+        return np.array(self._data["momentum"])
+
+    @property
+    def width(self):
+        r"""$\Delta x$, in 2d $(\Delta x, \Delta y)$."""
+        return np.array(self._data["width"])
+
+
+class AutoCorrelation(Analyzer):
+    r"""Record the autocorrelation function $C(t) = \langle\psi_0|\psi(t)\rangle$
+    and compute the spectrum from it.
+
+    Parameters
+    ----------
+    reference : array, optional
+        $\psi_0$. Defaults to the wavefunction of the first call.
+    """
+
+    def __init__(self, reference=None):
+        self._reference = None if reference is None else np.array(reference, dtype=complex)
+        self._t = []
+        self._C = []
+
+    def add_data(self, grid):
+        if self._reference is None:
+            self._reference = grid.psi.copy()
+        self._t.append(grid.t)
+        self._C.append(np.sum(np.conj(self._reference) * grid.psi) * grid.dV)
+
+    @property
+    def t(self):
+        """Sample times."""
+        return np.array(self._t)
+
+    @property
+    def C(self):
+        r"""$C(t)$ at the sample times."""
+        return np.array(self._C)
+
+    def spectrum(self, window="hann"):
+        r"""Spectrum $|\tilde C(E)| = \left|\int_0^T w(t)\,e^{iEt}\,C(t)\,\mathrm{d}t\right|$.
+
+        Expanding $\psi_0$ in eigenstates, $C(t) = \sum_n |c_n|^2 e^{-iE_n t}$,
+        so the spectrum has peaks at the eigenenergies $E_n$, weighted by
+        $|c_n|^2$; cmp. Feit et al., J. Comp. Phys. 47, 412 (1982). The
+        resolution is about $2\pi/T$, the largest energy $\pi/\Delta t$.
 
         Parameters
         ----------
-        E : complex
-            Use a phase $c = \exp(i E_n t)$ to build the eigenstate the belongs
-            to the energy given by $E$.
-        window : string, optional
-            "hann", "hamming" or "blackman" for Hann, Hamming or Blackman
-            window functions, respevtively. Defaults to the Hamming window.
+        window : str or tuple, optional
+            Window $w(t)$, as understood by ``scipy.signal.get_window()``.
+            Only its second half is used, which decays from 1 at $t = 0$ to 0
+            at $t = T$ (since $C(-t) = C(t)^*$). Defaults to Hann.
 
         Returns
         -------
-        psi_n : complex array
-            Eigenfunction estimate for the energy given.
+        E : array
+            Energies, ascending.
+        amplitude : array
+            $|\tilde C(E)|$.
         """
 
-        if window == "hann":
-            win_func = hann
-        elif window == "hamming":
-            win_func = hamming
-        elif window == "blackman":
-            win_func = blackman
-        else:
-            raise ValueError("Illegal window option in process_data()!")
-
-        if not self._is1d:
-            raise NotImplementedError("Two dimensional computations are not implemented yet!")  # TODO: implement 2d
-
-        integrands = np.zeros([len(self._psi_samples[0]), len(self._t_samples)], dtype=complex)
-        window_array = win_func(len(self._t_samples))
-        t_samples = np.asarray(self._t_samples)
-        dt = t_samples[1] - t_samples[0]
-        psi_samples = np.asarray(self._psi_samples)
-
-        for i in range(len(self._t_samples)):  # build exp(i E_n t_n) psi_{x_n, t_n} array
-            integrands[:, i] = np.exp(1j * E * t_samples[i]) * psi_samples[i] * window_array[i]
-
-        return simpson(integrands, dx=dt)  # simpson() integrates the last axis, here: the *time* axis
-
-    def plot_eigenfunction(self, E):
-        """Plot eigenfunction for energy E.
-
-        Parameters
-        ----------
-        E : complex
-            Energy E.
-        """
-
-        psi_eigen = self.compute_eigenfunction(E)
-
-        plt.plot(self._x_grid, np.abs(psi_eigen), lw=2, c="b", ls="-", label=rf"$\vert\psi_E(x)\vert$ for $E={E}$")
-        plt.plot(
-            self._x_grid, np.real(psi_eigen), lw=1.5, c="red", ls="--", label=rf"$\mathrm{{Re}}\,\psi_E(x)$ for $E={E}$"
-        )
-        plt.plot(
-            self._x_grid,
-            np.imag(psi_eigen),
-            lw=1.5,
-            c="gray",
-            ls="--",
-            label=rf"$\mathrm{{Im}}\,\psi_E(x)$ for $E={E}$",
-        )
-        plt.legend()
-        plt.show()
+        t = self.t
+        n = len(t)
+        if n < 2:
+            raise ValueError("at least two samples are needed for a spectrum")
+        dt = t[1] - t[0]
+        if not np.allclose(np.diff(t), dt, rtol=1e-6, atol=0.0):
+            raise ValueError("the spectrum needs equidistant sample times")
+        w = get_window(window, 2 * n, fftbins=False)[n:]
+        E = 2 * np.pi * np.fft.fftshift(np.fft.fftfreq(n, dt))
+        amplitude = np.abs(np.fft.fftshift(np.fft.ifft(self.C * w))) * n * dt
+        return E, amplitude
 
 
-class EigenstateFilter:
+class EigenstateFilter(Analyzer):
     r"""Build eigenstates for given energies on the fly, without storing the
-    wavefunction at every time step (needed in 2d).
+    wavefunction at every time step.
 
     For each energy $E$ the filter accumulates
     $\varphi_E = \int_0^{T} w(t)\, e^{iEt}\,\psi(t)\,\mathrm{d}t$,
-    with a window function $w$ that decays from 1 at $t = 0$ to 0 at
-    $t = T$. Cmp. Feit et al., J. Comp. Phys. 47, 412 (1982).
+    with half a Hann window $w(t) = (1 + \cos(\pi t/T))/2$ that decays from 1
+    at $t = 0$ to 0 at $t = T$. Times are counted from the first call.
+    Cmp. Feit et al., J. Comp. Phys. 47, 412 (1982).
+
+    The energy resolution is about $2\pi/T$; states closer in energy are
+    mixed.
+
+    Parameters
+    ----------
+    energies : float or array-like
+        Energies to filter for.
+    t_max : float
+        Filter time $T$. Data added later than $T$ after the first call is
+        ignored.
     """
 
     def __init__(self, energies, t_max):
-        """Create the filter.
+        self.energies = np.atleast_1d(np.asarray(energies, dtype=float))
+        self.t_max = float(t_max)
+        self._t0 = None
+        self._dV = None
+        self._phi = None
+        self._trapezoid = _Trapezoid()
+
+    def add_data(self, grid):
+        self._add(grid.t, grid.psi, grid.dV)
+
+    def _add(self, t, psi, dV):
+        if self._t0 is None:
+            self._t0 = t
+            self._dV = dV
+            self._phi = np.zeros((len(self.energies),) + np.shape(psi), dtype=complex)
+        t = t - self._t0
+        if t > self.t_max * (1 + 1e-9):
+            return
+        done = self._trapezoid.push(t, np.array(psi, dtype=complex))
+        if done is not None:
+            self._accumulate(self._phi, *done)
+
+    def _accumulate(self, phi, t, psi, weight):
+        w = 0.5 * (1 + np.cos(np.pi * t / self.t_max)) * weight
+        for i, E in enumerate(self.energies):
+            phi[i] += w * np.exp(1j * E * t) * psi
+
+    def eigenstates(self):
+        r"""Return the filtered states, normalized to $\Vert\varphi_E\Vert = 1$.
+
+        Returns
+        -------
+        phi : complex array
+            ``phi[i]`` belongs to ``energies[i]``.
+        """
+
+        if self._phi is None:
+            raise ValueError("no data has been added yet")
+        phi = self._phi.copy()
+        last = self._trapezoid.last()
+        if last is not None:
+            self._accumulate(phi, *last)
+        norms = np.sqrt(np.sum(np.abs(phi) ** 2, axis=tuple(range(1, phi.ndim))) * self._dV)
+        return phi / norms.reshape((-1,) + (1,) * (phi.ndim - 1))
+
+
+class EigenfunctionBuilder(Analyzer):
+    r"""Store $\psi(t)$ to build eigenstates for energies chosen after the
+    propagation, e.g. from the peaks of ``AutoCorrelation.spectrum()``.
+
+    This needs memory for all stored wavefunctions; use ``EigenstateFilter``
+    if the energies are known in advance. The filter is the same, with $T$
+    the time between the first and the last call.
+    """
+
+    def __init__(self):
+        self._t = []
+        self._psi = []
+        self._dV = None
+
+    def add_data(self, grid):
+        self._t.append(grid.t)
+        self._psi.append(grid.psi.copy())
+        self._dV = grid.dV
+
+    def eigenstates(self, energies):
+        """Filtered states for the given energies, see ``EigenstateFilter``.
 
         Parameters
         ----------
-        energies : array-like
-            Energies to filter for.
-        t_max : float
-            Total propagation time, needed for the window function.
+        energies : float or array-like
+
+        Returns
+        -------
+        phi : complex array
+            ``phi[i]`` belongs to ``energies[i]``.
         """
 
-        self.energies = np.atleast_1d(np.asarray(energies, dtype=float))
-        self.t_max = float(t_max)
-        self._phi = None
+        if len(self._t) < 2:
+            raise ValueError("at least two samples are needed")
+        filt = EigenstateFilter(energies, self._t[-1] - self._t[0])
+        for t, psi in zip(self._t, self._psi, strict=True):
+            filt._add(t, psi, self._dV)
+        return filt.eigenstates()
 
-    def add_data(self, psi, t, dt):
-        """Add the wavefunction at time t; dt is the time step between calls."""
 
-        t = abs(t)
-        if t > self.t_max:
-            return
-        if self._phi is None:
-            self._phi = np.zeros((len(self.energies),) + np.shape(psi), dtype=complex)
-        w = 0.5 * (1 + np.cos(np.pi * t / self.t_max)) * abs(dt)  # half of a Hann window
-        for i, E in enumerate(self.energies):
-            self._phi[i] += w * np.exp(1j * E * t) * psi
+class IntegratedDensity(Analyzer):
+    r"""Time integrated density $\int |\psi(\mathbf{r}, t)|^2\,\mathrm{d}t$.
 
-    def eigenstates(self, dV=1.0):
-        """Return the filtered states, normalized for the volume element dV."""
+    Shows where a wave has been, e.g. the branches of branched flow.
+    """
 
-        norms = np.sqrt(np.sum(np.abs(self._phi) ** 2, axis=tuple(range(1, self._phi.ndim))) * dV)
-        return self._phi / norms.reshape((-1,) + (1,) * (self._phi.ndim - 1))
+    def __init__(self):
+        self._acc = None
+        self._trapezoid = _Trapezoid()
+
+    def add_data(self, grid):
+        if self._acc is None:
+            self._acc = np.zeros(np.shape(grid.psi))
+        done = self._trapezoid.push(grid.t, grid.density)
+        if done is not None:
+            self._acc += done[2] * done[1]
+
+    @property
+    def density(self):
+        """The integrated density so far."""
+        if self._acc is None:
+            raise ValueError("no data has been added yet")
+        last = self._trapezoid.last()
+        return self._acc if last is None else self._acc + last[2] * last[1]
+
+
+class Flux(Analyzer):
+    r"""Probability flux through a point (1d) or a line (2d).
+
+    The current density is $j = \mathrm{Im}(\psi^*\nabla\psi)$ (atomic
+    units, $m = 1$), with the derivative taken spectrally. In 1d the flux is
+    $j(x_0, t)$, in 2d the flux through the line $x = x_0$ (``axis=0``) or
+    $y = y_0$ (``axis=1``). The time integral of the flux is the probability
+    that has passed, e.g. the transmission through a barrier. Unlike the
+    probability to the right of the barrier, it counts the transmitted part
+    even after an absorber has swallowed it.
+
+    The flux at a single point is sensitive to high momentum components,
+    e.g. from discontinuous potentials. Call the analyzer at every time step
+    and use a time step that resolves the relevant momenta; otherwise the
+    time integral can be off by several percent.
+
+    Parameters
+    ----------
+    position : float
+        $x_0$ (or $y_0$). The nearest grid point (line) is used.
+    axis : int, optional
+        In 2d, the axis normal to the line.
+    """
+
+    def __init__(self, position, axis=0):
+        self.position = float(position)
+        self.axis = int(axis)
+        self._t = []
+        self._flux = []
+
+    def add_data(self, grid):
+        axis = 0 if grid.dim == 1 else self.axis
+        if grid.dim == 1:
+            coords, k, d = grid.x_vals, grid.k_vals, None
+        elif axis == 0:
+            coords, k, d = grid.x_vals, grid.kx_vals, grid.dy
+        else:
+            coords, k, d = grid.y_vals, grid.ky_vals, grid.dx
+        i = np.argmin(np.abs(coords - self.position))
+        psi = grid.psi
+        k_shape = [1] * psi.ndim
+        k_shape[axis] = -1
+        dpsi = np.fft.ifft(1j * k.reshape(k_shape) * np.fft.fft(psi, axis=axis), axis=axis)
+        j = np.imag(np.conj(np.take(psi, i, axis=axis)) * np.take(dpsi, i, axis=axis))
+        self._t.append(grid.t)
+        self._flux.append(j if d is None else np.sum(j) * d)
+
+    @property
+    def t(self):
+        """Sample times."""
+        return np.array(self._t)
+
+    @property
+    def flux(self):
+        """Flux at the sample times; positive in the direction of the axis."""
+        return np.array(self._flux)
+
+    @property
+    def transferred(self):
+        """Probability that has passed so far, $\\int j\\,\\mathrm{d}t$."""
+        return trapezoid(self.flux, self.t) if len(self._t) > 1 else 0.0
+
+    def cumulative(self):
+        """Probability that has passed, at each sample time."""
+        return cumulative_trapezoid(self.flux, self.t, initial=0.0)

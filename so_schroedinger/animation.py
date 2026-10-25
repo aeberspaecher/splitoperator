@@ -57,7 +57,7 @@ def animate1d(
     show_initial : bool, optional
         Plot $\vert\psi_0\vert^2$ in the background.
     analyzers : list of Analyzer, optional
-        Data is handed to each analyzer at every frame.
+        Each analyzer is called with the grid at every frame.
     interval : int, optional
         Delay between frames in milliseconds.
     ax : matplotlib Axes, optional
@@ -138,9 +138,8 @@ def _record(grid, propagator, dt, n_frames, steps_per_frame, analyzers):
     for i in range(n_frames):
         if i > 0:
             propagator.propagate(grid, dt, steps_per_frame)
-        if analyzers is not None:
-            for analyzer in analyzers:
-                analyzer.add_data(grid.psi.copy(), grid.V.copy(), grid.t)
+        for analyzer in analyzers or []:
+            analyzer(grid)
         frames.append((grid.t, grid.psi.copy(), grid.V.copy() if grid.update_pot else None))
     return frames
 
@@ -174,6 +173,7 @@ def animate2d(
     potential_levels=5,
     cmap="magma",
     vmax=None,
+    analyzers=None,
     interval=40,
     ax=None,
     close_figure=True,
@@ -206,6 +206,8 @@ def animate2d(
     vmax : float, optional
         Value for full color (density) or brightness (modulus); defaults to
         the maximum of the initial state.
+    analyzers : list of Analyzer, optional
+        Each analyzer is called with the grid at every frame.
     interval : int, optional
         Delay between frames in milliseconds.
     ax : matplotlib Axes, optional
@@ -229,6 +231,8 @@ def animate2d(
     for i in range(int(n_frames)):
         if i > 0:
             propagator.propagate(grid, dt, steps_per_frame)
+        for analyzer in analyzers or []:
+            analyzer(grid)
         data = grid.density.astype(np.float32) if mode == "density" else grid.psi.astype(np.complex64)
         frames.append((grid.t, data, np.real(grid.V).copy() if grid.update_pot else None))
 

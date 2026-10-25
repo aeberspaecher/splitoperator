@@ -98,16 +98,19 @@ class SplitOperator(Propagator):
             Time step.
         n_steps : int
             Number of steps.
-        callback : callable, optional
-            Called as ``callback(grid)`` after every ``every`` steps.
+        callback : callable or sequence of callables, optional
+            Called as ``callback(grid)`` after every ``every`` steps, e.g. an
+            analyzer.
         every : int, optional
             Callback interval.
         """
 
+        callbacks = [] if callback is None else [callback] if callable(callback) else list(callback)
         for i in range(1, int(n_steps) + 1):
             self.step(grid, dt)
-            if callback is not None and i % every == 0:
-                callback(grid)
+            if i % every == 0:
+                for cb in callbacks:
+                    cb(grid)
 
     def _apply_potential_part(self, grid, dt):
         """Apply potential energy operator part of the propagator in position

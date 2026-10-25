@@ -230,6 +230,12 @@ class Grid2d(Grid):
         rho = self.density
         return np.sum(self.X * rho) / np.sum(rho), np.sum(self.Y * rho) / np.sum(rho)
 
+    def width_r(self):
+        r"""Position uncertainties $(\Delta x, \Delta y)$."""
+        rho = self.density / np.sum(self.density)
+        x_mean, y_mean = np.sum(self.X * rho), np.sum(self.Y * rho)
+        return np.sqrt(np.sum((self.X - x_mean) ** 2 * rho)), np.sqrt(np.sum((self.Y - y_mean) ** 2 * rho))
+
     def expectation_p(self):
         r"""Momentum expectation value $(\langle p_x\rangle, \langle p_y\rangle)$."""
         rho_k = np.abs(np.fft.fft2(self._psi)) ** 2
