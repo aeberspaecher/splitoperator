@@ -14,7 +14,6 @@ class Recorder:
     # - potential (V(t))
     # - psi(t)
 
-
     def __init__(self, grid, psi0, V, absorber=None, V_is_time_dep=False):
         pass
 
@@ -26,7 +25,6 @@ class Recorder:
 
 
 class RecorderFromData(Recorder):
-
     def __init__(self, filename):
         """Create a Recorder from data stored in an h5 file.
 

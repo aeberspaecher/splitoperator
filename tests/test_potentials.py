@@ -10,7 +10,7 @@ ALL_POTENTIALS = [
     so.BoxPotential(0.0, 2.0, 3.0),
     so.SmoothedBoxPotential(0.0, 2.0, 3.0),
     so.WellPotential1d(0.0, 4.0, 0.0, 10.0),
-    so.WellPotential1d(0.0, 4.0, 0.0, 10.0, d=1.0, Vext=1.0),
+    so.WellPotential1d(0.0, 4.0, 0.0, 10.0, d=1.0, V_ext=1.0),
     so.SquareWell1d(1.0, 2.0, 4.0, 0.0),
     so.EckartPotential1d(0.0, 1.0, 1.0),
     so.GaussBarrier1d(0.0, 1.0, 1.0),
@@ -18,7 +18,7 @@ ALL_POTENTIALS = [
     so.MovingRamp1d(0.0, 1.0, 0.5, True, "sin", 1.0, 1.0, 0.0),
     so.HarmOscPot(1.0),
     so.InterpolatingPotential1d([(-10, 5), (0, 0), (10, 5)]),
-    so.RandomPotential1d(lambda r: np.exp(-r**2/2), x, 1.0, rng=0),
+    so.RandomPotential1d(lambda r: np.exp(-(r**2) / 2), x, 1.0, rng=0),
     so.ExpAbsorber1d(-1.0, -1.0, 2.0, 2.0, -10.0, 10.0),
 ]
 
@@ -40,13 +40,13 @@ def test_square_well_is_continuous_off_center():
 def test_superposition_adds_and_tracks_time_dependence():
     a, b = so.HarmOscPot(1.0), so.MovingRamp1d(0.0, 1.0, 0.5, True, "sin", 1.0, 1.0, 0.0)
     s = a + b
-    assert s.isTimeDependent
+    assert s.is_time_dependent
     assert np.allclose(s.V(x, 0.1), a.V(x, 0.1) + b.V(x, 0.1))
-    assert not (a + so.ConstantPotential(0)).isTimeDependent
+    assert not (a + so.ConstantPotential(0)).is_time_dependent
 
 
 def test_random_potential_is_reproducible_and_scaled():
-    corr = lambda r: np.exp(-r**2/2)
+    corr = lambda r: np.exp(-(r**2) / 2)
     V1 = so.RandomPotential1d(corr, x, 2.0, rng=42).V(x, 0.0)
     V2 = so.RandomPotential1d(corr, x, 2.0, rng=42).V(x, 0.0)
     assert np.array_equal(V1, V2)
@@ -55,7 +55,7 @@ def test_random_potential_is_reproducible_and_scaled():
 
 def test_gaussian_random_field_has_requested_correlation():
     ell, dx, n = 2.0, 0.25, 2**14
-    field = so.gaussian_random_field(n, dx, lambda r: np.exp(-r**2/(2*ell**2)), rng=1)
-    lag = int(ell/dx)
-    corr = np.mean(field*np.roll(field, lag))
+    field = so.gaussian_random_field(n, dx, lambda r: np.exp(-(r**2) / (2 * ell**2)), rng=1)
+    lag = int(ell / dx)
+    corr = np.mean(field * np.roll(field, lag))
     assert corr == pytest.approx(np.exp(-0.5), abs=0.05)
