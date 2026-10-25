@@ -12,7 +12,9 @@ The propagator uses the symmetrized (Strang) splitting
 
 where the kinetic part is applied in momentum space. Time-dependent
 potentials enter as V(t) in the first and V(t+dt) in the second half step,
-which keeps the scheme second order. Complex time steps
+which keeps the scheme second order. `SplitOperator(order=4)` or `order=6`
+composes 3 or 9 Strang steps (Yoshida's triple jump) into a fourth or sixth
+order step for real time steps. Complex time steps
 `dt = -i τ` give imaginary time evolution, which relaxes to the ground state.
 All quantities are in atomic units (ħ = m = 1).
 
@@ -167,7 +169,7 @@ and the animation cells take a while.
 |---|---|---|
 | `01_free_wavepacket.ipynb` | spreading of a free Gaussian, compared with the analytic solution | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/01_free_wavepacket.ipynb) |
 | `02_tunneling.ipynb` | tunneling through a rectangular barrier, transmission versus energy compared with the plane wave formula, and sliders for barrier height, width and packet energy | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/02_tunneling.ipynb) |
-| `03_harmonic_oscillator.ipynb` | coherent states, ground state from imaginary time evolution (ground and excited states), spectrum and eigenstates from the autocorrelation function | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/03_harmonic_oscillator.ipynb) |
+| `03_harmonic_oscillator.ipynb` | coherent states, ground state from imaginary time evolution (ground and excited states), spectrum and eigenstates from the autocorrelation function, error versus time step for splittings of order 2, 4 and 6 | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/03_harmonic_oscillator.ipynb) |
 | `04_branched_flow.ipynb` | a wave in a weak, smooth random potential splits into branches; quantum density compared with classical rays | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/04_branched_flow.ipynb) |
 | `05_stadium_billiard.ipynb` | chaotic dynamics in the Bunimovich stadium versus the circle, spectrum and eigenstates scarred by a periodic orbit | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/05_stadium_billiard.ipynb) |
 | `06_talbot_carpet.ipynb` | quantum carpet and exact and fractional revivals in an infinite well, and how finite walls spoil the revival | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/06_talbot_carpet.ipynb) |

@@ -112,3 +112,54 @@ def test_time_dependent_potential_is_second_order():
         errors.append(abs(grid.expectation_x() - x_exact))
         assert grid.V == pytest.approx(grid._potential.V(grid.x_vals, grid.t))  # V belongs to the current time
     assert errors[0] / errors[1] == pytest.approx(4.0, rel=0.1)
+
+
+@pytest.mark.parametrize("order", [2, 4, 6])
+def test_splitting_has_the_stated_order(order):
+    omega, x0, p0, t_end = 1.0, 3.0, 1.0, 2.0
+    x_exact = x0 * np.cos(omega * t_end) + p0 / omega * np.sin(omega * t_end)
+    errors = []
+    for dt in (0.1, 0.05):
+        grid = make_grid(so.HarmOscPot(omega), so.CoherentState(x0, omega, p0), (-20.0, 20.0), 2**10)
+        so.SplitOperator(order=order).propagate(grid, dt, round(t_end / dt))
+        assert grid.t == pytest.approx(t_end)
+        errors.append(abs(grid.expectation_x() - x_exact))
+    assert errors[0] / errors[1] == pytest.approx(2.0**order, rel=0.1)
+
+
+def test_fourth_order_with_time_dependent_potential():
+    omega, force, omega_d, x0, t_end = 1.0, 1.0, 2.5, 1.0, 4.0
+    A = force / (omega**2 - omega_d**2)
+    x_exact = x0 * np.cos(omega * t_end) - A * omega_d / omega * np.sin(omega * t_end) + A * np.sin(omega_d * t_end)
+
+    potential, psi0 = DrivenOscillator(omega, force, omega_d), so.CoherentState(x0, omega, 0.0)
+    errors = []
+    for dt in (0.08, 0.04):
+        grid = make_grid(potential, psi0, (-20.0, 20.0), 2**10)
+        so.SplitOperator(order=4).propagate(grid, dt, round(t_end / dt), callback=lambda g: None, every=7)
+        errors.append(abs(grid.expectation_x() - x_exact))
+    assert errors[0] / errors[1] == pytest.approx(16.0, rel=0.1)
+
+
+def test_fourth_order_merged_steps_match_single_steps():
+    def run(use_propagate):
+        grid = make_grid(so.GaussBarrier1d(5.0, 2.0, 1.0), so.Gaussian1d(-10.0, 2.0, 2.0))
+        prop = so.SplitOperator(order=4)
+        if use_propagate:
+            prop.propagate(grid, 0.02, 100)
+        else:
+            for _ in range(100):
+                prop.step(grid, 0.02)
+        return grid
+
+    merged, single = run(True), run(False)
+    assert merged.t == pytest.approx(single.t)
+    assert np.allclose(merged.psi, single.psi, atol=1e-12)
+
+
+def test_higher_orders_reject_imaginary_time_and_unknown_orders():
+    grid = make_grid(so.HarmOscPot(1.0), so.Gaussian1d(1.0, 0.5, 0.0), size=(-15.0, 15.0), samples=2**9)
+    with pytest.raises(ValueError, match="real time step"):
+        so.SplitOperator(order=4).step(grid, -0.01j)
+    with pytest.raises(ValueError, match="order"):
+        so.SplitOperator(order=3)
