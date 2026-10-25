@@ -67,6 +67,7 @@ class Grid:
         """Update potential for time $t$."""
 
         self._pot = np.asarray(self._potential.V(self._r, t), dtype=complex) + self._absorber0
+        self._pot_t = t
 
     def renormalize_psi(self):
         r"""Renormalize $\psi$ such that $\Vert\psi\Vert = 1$."""

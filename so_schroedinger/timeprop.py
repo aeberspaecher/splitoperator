@@ -34,11 +34,16 @@ class SplitOperator(Propagator):
     with a local error of $O(\Delta t^3)$. The kinetic part is applied in
     momentum space via FFT.
 
+    For a time-dependent potential, the opening half step uses $V(t)$ and
+    the closing one $V(t+\Delta t)$,
+    $e^{-iV(t+\Delta t)\Delta t/2} e^{-iT\Delta t} e^{-iV(t)\Delta t/2}$,
+    which keeps the scheme symmetric in time and second order accurate.
+
     In :meth:`propagate`, the closing potential half step of one step and the
-    opening half step of the next one are merged into a single full step as
-    long as the potential does not depend on time and no callback or
-    renormalization comes in between. This gives the same result with one
-    array multiplication less per step.
+    opening half step of the next one use the same potential and are merged
+    into a single full step as long as no callback or renormalization comes
+    in between. This gives the same result with one array multiplication less
+    per step, and the potential is evaluated only once per step.
 
     A time step with negative imaginary part, $\Delta t = -i\tau$, performs
     imaginary time evolution, which relaxes to the ground state.
@@ -113,23 +118,18 @@ class SplitOperator(Propagator):
                     cb(grid)
 
     def _steps(self, grid, dt, n):
-        """Do n steps, merging adjacent potential half steps if the potential
-        does not depend on time."""
+        """Do n steps, merging adjacent potential half steps."""
 
         norm_before = grid.psi_norm
-        if grid.update_pot:
-            for _ in range(n):
+        if grid.update_pot and grid._pot_t != grid.t:
+            grid.update_potential(grid.t)
+        self._apply_potential_part(grid, dt / 2.0)
+        for i in range(n):
+            self._apply_kinetic_part(grid, dt)
+            grid.t = grid.t + np.abs(dt)  # the abs() call is needed for imaginary time evolution
+            if grid.update_pot:
                 grid.update_potential(grid.t)
-                self._apply_potential_part(grid, dt / 2.0)
-                self._apply_kinetic_part(grid, dt)
-                self._apply_potential_part(grid, dt / 2.0)
-                grid.t = grid.t + np.abs(dt)  # the abs() call is needed for imaginary time evolution
-        else:
-            self._apply_potential_part(grid, dt / 2.0)
-            for i in range(n):
-                self._apply_kinetic_part(grid, dt)
-                self._apply_potential_part(grid, dt if i < n - 1 else dt / 2.0)
-            grid.t = grid.t + n * np.abs(dt)
+            self._apply_potential_part(grid, dt if i < n - 1 else dt / 2.0)
         self._stepcount += n
 
         # estimate ground state energy in case of imaginary time evolution:
