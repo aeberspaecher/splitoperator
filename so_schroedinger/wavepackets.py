@@ -89,7 +89,7 @@ class Gaussian1dEnergy(Gaussian1d):
     """A Gaussian wavepacket in one dimension created from energy parameters.
     """
 
-    def __init__(self, x0, E0, deltaE, direction=+1):
+    def __init__(self, x0, E0, delta_E, direction=+1):
         """Create a Gaussian wavepacket from energy parameters.
 
         Parameters
@@ -98,7 +98,7 @@ class Gaussian1dEnergy(Gaussian1d):
             Center position.
         E0 : float
             Center energy.
-        deltaE : float
+        delta_E : float
             Full width half maximum of the Gaussian in energy space. Using
             this and E0, sigma_x will be derived.
         direction : float
@@ -115,11 +115,11 @@ class Gaussian1dEnergy(Gaussian1d):
         Hussain and Roberts, Phys. Rev. A 63, 012703 (2000)
         """
 
-        E0, deltaE = float(E0), float(deltaE)
-        sigma = 2*np.sqrt(2*np.log(2)*E0)/deltaE
+        E0, delta_E = float(E0), float(delta_E)
+        sigma = 2*np.sqrt(2*np.log(2)*E0)/delta_E
         p0 = np.sign(direction)*np.sqrt(2*E0)
         super().__init__(x0, sigma, p0)
-        log.info("Created a Gaussian wavepacket with energy E = %s, FWHM deltaE = %s", E0, deltaE)
+        log.info("Created a Gaussian wavepacket with energy E = %s, FWHM delta_E = %s", E0, delta_E)
 
 
 class CoherentState(Gaussian1d):
@@ -148,7 +148,7 @@ class Gaussian2d(WavePacket):
     """A Gaussian wavepacket in two dimensions, evaluated as ``psi((X, Y))``.
     """
 
-    def __init__(self, x0, y0, sigmax, sigmay=None, px=0.0, py=0.0):
+    def __init__(self, x0, y0, sigma_x, sigma_y=None, px=0.0, py=0.0):
         r"""Create a 2d Gaussian wavepacket, the product of two 1d Gaussians
         $\psi = \psi_x(x)\,\psi_y(y)$.
 
@@ -156,14 +156,14 @@ class Gaussian2d(WavePacket):
         ----------
         x0, y0 : float
             Center position.
-        sigmax, sigmay : float
-            Position space widths; sigmay defaults to sigmax.
+        sigma_x, sigma_y : float
+            Position space widths; sigma_y defaults to sigma_x.
         px, py : float, optional
             Center momentum.
         """
 
-        self.gx = Gaussian1d(x0, sigmax, px)
-        self.gy = Gaussian1d(y0, sigmax if sigmay is None else sigmay, py)
+        self.gx = Gaussian1d(x0, sigma_x, px)
+        self.gy = Gaussian1d(y0, sigma_x if sigma_y is None else sigma_y, py)
 
     def psi(self, r):
         x, y = r

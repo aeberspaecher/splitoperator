@@ -27,12 +27,12 @@ import so_schroedinger as so
 
 psi0 = so.Gaussian1d(x0=-10.0, sigma=2.0, p0=2.0)
 barrier = so.GaussBarrier1d(x0=0.0, V0=2.0, sigma=0.5)
-grid = so.Grid1d(size=(-50.0, 50.0), gridsamples=2**11, potential=barrier, psi0=psi0)
+grid = so.Grid1d(size=(-50.0, 50.0), grid_samples=2**11, potential=barrier, psi0=psi0)
 
 prop = so.SplitOperator()
-prop.propagate(grid, dt=0.01, nSteps=1000)
+prop.propagate(grid, dt=0.01, n_steps=1000)
 
-print(grid.t, grid.psiNorm, grid.expectationX())
+print(grid.t, grid.psi_norm, grid.expectation_x())
 ```
 
 ## Two dimensions
@@ -43,10 +43,10 @@ print(grid.t, grid.psiNorm, grid.expectationX())
 ```python
 size = ((-4.5, 4.5), (-2.5, 2.5))
 stadium = so.StadiumPotential2d(a=2.0, R=2.0, V0=400.0, w=0.04)
-psi0 = so.Gaussian2d(x0=0.0, y0=0.0, sigmax=0.4, px=8.0)
+psi0 = so.Gaussian2d(x0=0.0, y0=0.0, sigma_x=0.4, px=8.0)
 grid = so.Grid2d(size, (192, 108), stadium, psi0)
-so.SplitOperator().propagate(grid, dt=0.004, nSteps=1000)
-anim = so.animate2d(grid, so.SplitOperator(), dt=0.004, nFrames=50, stepsPerFrame=20)
+so.SplitOperator().propagate(grid, dt=0.004, n_steps=1000)
+anim = so.animate2d(grid, so.SplitOperator(), dt=0.004, n_frames=50, steps_per_frame=20)
 ```
 
 2d potentials: `HarmOscPot2d`, `GaussBump2d`, `StadiumPotential2d`,
@@ -60,7 +60,7 @@ series.
 ```python
 from IPython.display import HTML
 
-anim = so.animate1d(grid, so.SplitOperator(), dt=0.02, nFrames=150, stepsPerFrame=10)
+anim = so.animate1d(grid, so.SplitOperator(), dt=0.02, n_frames=150, steps_per_frame=10)
 HTML(anim.to_jshtml())        # in a Jupyter notebook
 anim.save("barrier.gif")      # or .mp4 (needs ffmpeg)
 ```
