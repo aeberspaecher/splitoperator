@@ -114,6 +114,19 @@ E, spectrum = corr.spectrum()  # peaks at the eigenenergies
 - `Flux`: probability flux through a point (1d) or line (2d), and its time
   integral, e.g. the transmission through a barrier
 
+## Plotting
+
+`so_schroedinger.plotting` turns the usual pictures into one-liners. Each
+function draws into `ax` (default: the current axes), labels the axes and
+returns what it drew:
+
+```python
+so.plotting.plot1d(grid)  # |ψ|² over the scaled potential
+so.plotting.plot2d(grid, kind="phase", potential_levels=3)  # also "density", "abs", "real"
+so.plotting.plot_momentum(grid)  # |ψ(k)|², 1d or 2d
+so.plotting.plot_eigenstates(grid, states, energies)  # |φₙ|² + Eₙ over V
+```
+
 ## Animations
 
 ```python
@@ -170,6 +183,8 @@ Install the extras with `pip install ".[notebooks]"` and start
 - `so_schroedinger.analyzers`: expectation values, autocorrelation spectra,
   eigenstates, time integrated density and flux
 - `so_schroedinger.animation`: Matplotlib animations of the propagation
+- `so_schroedinger.plotting`: one-line plots of wavefunctions, momentum
+  distributions and eigenstates
 
 ## Tests
 
