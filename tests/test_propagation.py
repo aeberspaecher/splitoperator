@@ -58,3 +58,30 @@ def test_absorber_removes_outgoing_packet():
     assert np.all(np.imag(grid.V) <= 0.0)
     so.SplitOperator().propagate(grid, 0.01, 1500)
     assert grid.psi_norm < 0.05
+
+
+@pytest.mark.parametrize("workers", [1, -1])
+def test_merged_half_steps_match_single_steps(workers):
+    def run(use_propagate):
+        grid = make_grid(so.GaussBarrier1d(5.0, 2.0, 1.0), so.Gaussian1d(-10.0, 2.0, 2.0))
+        prop = so.SplitOperator(workers=workers)
+        if use_propagate:
+            prop.propagate(grid, 0.01, 300, callback=lambda g: None, every=7)
+        else:
+            for _ in range(300):
+                prop.step(grid, 0.01)
+        return grid
+
+    merged, single = run(True), run(False)
+    assert merged.t == pytest.approx(single.t)
+    assert np.allclose(merged.psi, single.psi, atol=1e-12)
+
+
+def test_callbacks_and_renormalization_keep_their_schedule():
+    grid = make_grid(so.HarmOscPot(1.0), so.Gaussian1d(1.0, 0.5, 0.0), size=(-15.0, 15.0), samples=2**9)
+    prop = so.SplitOperator(renormalize_every=4)
+    times, norms = [], []
+    prop.propagate(grid, -0.01j, 30, callback=lambda g: (times.append(g.t), norms.append(g.psi_norm)), every=6)
+    assert times == pytest.approx([0.06, 0.12, 0.18, 0.24, 0.30])
+    assert norms[1] == pytest.approx(1.0)  # step 12 is a renormalization step
+    assert norms[0] != pytest.approx(1.0)  # step 6 is not

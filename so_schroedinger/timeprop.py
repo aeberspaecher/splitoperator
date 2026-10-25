@@ -8,6 +8,7 @@ http://en.wikipedia.org/wiki/Atomic_units
 import logging
 
 import numpy as np
+import scipy.fft
 
 # list of exported symbols:
 __all__ = ["Propagator", "SplitOperator"]
@@ -33,11 +34,17 @@ class SplitOperator(Propagator):
     with a local error of $O(\Delta t^3)$. The kinetic part is applied in
     momentum space via FFT.
 
+    In :meth:`propagate`, the closing potential half step of one step and the
+    opening half step of the next one are merged into a single full step as
+    long as the potential does not depend on time and no callback or
+    renormalization comes in between. This gives the same result with one
+    array multiplication less per step.
+
     A time step with negative imaginary part, $\Delta t = -i\tau$, performs
     imaginary time evolution, which relaxes to the ground state.
     """
 
-    def __init__(self, renormalize_every=0):
+    def __init__(self, renormalize_every=0, workers=-1):
         """Create a split operator propagator.
 
         Parameters
@@ -45,13 +52,18 @@ class SplitOperator(Propagator):
         renormalize_every : int, optional
             Renormalize the wavefunction after this many steps have been made.
             Use 0 if you do not want renormalization.
+        workers : int, optional
+            Number of threads for the FFTs, passed on to ``scipy.fft``; -1
+            uses all CPU cores. Other FFT libraries can be plugged in with
+            ``scipy.fft.set_backend()``, e.g. ``pyfftw.interfaces.scipy_fft``.
         """
 
         self._stepcount = 0
         self._renormalize_every = int(renormalize_every)
+        self.workers = workers
         self.ground_state_energy = None
-        self._kin_cache = (None, None, None)  # (k_squared array, dt, exp(-i k^2 dt/2))
-        self._pot_cache = (None, None, None)  # (V array, dt, exp(-i V dt))
+        self._kin_cache = (None, {})  # (k_squared array, {dt: exp(-i k^2 dt/2)})
+        self._pot_cache = (None, {})  # (V array, {dt: exp(-i V dt)})
 
     def step(self, grid, dt):
         """Advance time by one step dt.
@@ -64,28 +76,7 @@ class SplitOperator(Propagator):
             Time step.
         """
 
-        self._stepcount += 1
-
-        if grid.update_pot:
-            grid.update_potential(grid.t)
-
-        norm_before = grid.psi_norm
-        self._apply_potential_part(grid, dt / 2.0)
-        self._apply_kinetic_part(grid, dt)
-        self._apply_potential_part(grid, dt / 2.0)
-
-        grid.t = grid.t + np.abs(dt)  # the abs() call is needed for imaginary time evolution
-
-        # estimate ground state energy in case of imaginary time evolution:
-        # once the evolution has converged to the ground state, one step
-        # multiplies psi by exp(-E_0 tau), cmp. Koeberle, Dissertation (2011),
-        # p. 36
-        if np.imag(dt) < 0.0:
-            self.ground_state_energy = np.log(grid.psi_norm / norm_before) / np.imag(dt)
-            log.debug("Current ground state energy estimate E_0 = %s", self.ground_state_energy)
-
-        if self._renormalize_every and self._stepcount % self._renormalize_every == 0:
-            grid.renormalize_psi()
+        self._steps(grid, dt, 1)
 
     def propagate(self, grid, dt, n_steps, callback=None, every=1):
         """Do several time steps.
@@ -106,22 +97,64 @@ class SplitOperator(Propagator):
         """
 
         callbacks = [] if callback is None else [callback] if callable(callback) else list(callback)
-        for i in range(1, int(n_steps) + 1):
-            self.step(grid, dt)
-            if i % every == 0:
+        n_steps = int(n_steps)
+        done = 0
+        while done < n_steps:
+            # steps up to the next callback or renormalization
+            n = n_steps - done
+            if callbacks:
+                n = min(n, every - done % every)
+            if self._renormalize_every:
+                n = min(n, self._renormalize_every - self._stepcount % self._renormalize_every)
+            self._steps(grid, dt, n)
+            done += n
+            if callbacks and done % every == 0:
                 for cb in callbacks:
                     cb(grid)
+
+    def _steps(self, grid, dt, n):
+        """Do n steps, merging adjacent potential half steps if the potential
+        does not depend on time."""
+
+        norm_before = grid.psi_norm
+        if grid.update_pot:
+            for _ in range(n):
+                grid.update_potential(grid.t)
+                self._apply_potential_part(grid, dt / 2.0)
+                self._apply_kinetic_part(grid, dt)
+                self._apply_potential_part(grid, dt / 2.0)
+                grid.t = grid.t + np.abs(dt)  # the abs() call is needed for imaginary time evolution
+        else:
+            self._apply_potential_part(grid, dt / 2.0)
+            for i in range(n):
+                self._apply_kinetic_part(grid, dt)
+                self._apply_potential_part(grid, dt if i < n - 1 else dt / 2.0)
+            grid.t = grid.t + n * np.abs(dt)
+        self._stepcount += n
+
+        # estimate ground state energy in case of imaginary time evolution:
+        # once the evolution has converged to the ground state, one step
+        # multiplies psi by exp(-E_0 tau), cmp. Koeberle, Dissertation (2011),
+        # p. 36
+        if np.imag(dt) < 0.0:
+            self.ground_state_energy = np.log(grid.psi_norm / norm_before) / (n * np.imag(dt))
+            log.debug("Current ground state energy estimate E_0 = %s", self.ground_state_energy)
+
+        if self._renormalize_every and self._stepcount % self._renormalize_every == 0:
+            grid.renormalize_psi()
 
     def _apply_potential_part(self, grid, dt):
         """Apply potential energy operator part of the propagator in position
         space (where the position operator is diagonal).
         """
 
-        V, dt_cached, factor = self._pot_cache
-        if V is not grid.V or dt_cached != dt:  # the grid creates a new array on each update
-            factor = np.exp(-1j * grid.V * dt)
-            self._pot_cache = (grid.V, dt, factor)
-        grid.psi = grid.psi * factor
+        V, factors = self._pot_cache
+        if V is not grid.V:  # the grid creates a new array on each update
+            factors = {}
+            self._pot_cache = (grid.V, factors)
+        if dt not in factors:
+            factors[dt] = np.exp(-1j * grid.V * dt)
+        grid.psi *= factors[dt]
 
     def _apply_kinetic_part(self, grid, dt):
         """Apply kinetic energy operator part of the propagation.
@@ -131,10 +164,12 @@ class SplitOperator(Propagator):
         -> inverse Fourier transform.
         """
 
-        k_squared, dt_cached, factor = self._kin_cache
-        if k_squared is not grid.k_squared or dt_cached != dt:
-            factor = np.exp(-1j * grid.k_squared * dt / 2.0)
-            self._kin_cache = (grid.k_squared, dt, factor)
-        Psi = np.fft.fftn(grid.psi)
-        Psi *= factor
-        grid.psi = np.fft.ifftn(Psi)
+        k_squared, factors = self._kin_cache
+        if k_squared is not grid.k_squared:
+            factors = {}
+            self._kin_cache = (grid.k_squared, factors)
+        if dt not in factors:
+            factors[dt] = np.exp(-1j * grid.k_squared * dt / 2.0)
+        Psi = scipy.fft.fftn(grid.psi, workers=self.workers)
+        Psi *= factors[dt]
+        grid.psi = scipy.fft.ifftn(Psi, workers=self.workers, overwrite_x=True)
