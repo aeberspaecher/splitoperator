@@ -1,14 +1,9 @@
-#!/usr/bin/env python
-#-*- coding:utf-8 -*-
-
 """Defines and implements the recorder object used to record split-operator
 time-propagation.
 """
 
-import h5py
 
-
-class Recorder(object):
+class Recorder:
     """Record data from split operator time propagation. Also save all relevant
     data.
     """
@@ -23,14 +18,14 @@ class Recorder(object):
     def __init__(self, grid, psi0, V, absorber=None, V_is_time_dep=False):
         pass
 
-    def add_iterate(psi, t):
+    def add_iterate(self, psi, t):
         pass
 
-    def save_to_h5(filename):
+    def save_to_h5(self, filename):
         pass
 
 
-def RecorderFromData(Recorder):
+class RecorderFromData(Recorder):
 
     def __init__(self, filename):
         """Create a Recorder from data stored in an h5 file.

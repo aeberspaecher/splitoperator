@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "so_schroedinger"
+version = "0.2.0"
+description = "Split operator time propagation for the time-dependent Schroedinger equation"
+readme = "README.md"
+license = "BSD-2-Clause"
+license-files = ["LICENSE"]
+authors = [{ name = "Alexander Eberspächer" }]
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.23", "scipy>=1.10", "matplotlib>=3.6"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools]
+packages = ["so_schroedinger"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

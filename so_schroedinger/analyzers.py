@@ -5,12 +5,9 @@
 
 import numpy as np
 from numpy.fft import fft, fftfreq, fftshift
-from scipy.integrate import simps
-from scipy.signal import hamming, hann, blackman
+from scipy.integrate import simpson
+from scipy.signal.windows import hamming, hann, blackman
 import matplotlib.pyplot as plt
-from anfft import fft, ifft
-#from numpy.fft import *
-from scipy.integrate import simps
 
 # FIXME: so far, all analyzers store their psi data individually.
 # this eats a lot of memory.
@@ -19,7 +16,7 @@ from scipy.integrate import simps
 __all__ = ["AutoCorrelation", "Observables", "EigenfunctionBuilder"]
 
 
-class Analyzer(object):
+class Analyzer:
     """Analyze wavefunctions and compute quantities derived from
     wavefunctions.
 
@@ -46,8 +43,8 @@ class Analyzer(object):
         self._psi0 = psi0
         self._V0 = V0
         self._gridSamples = np.shape(V0)  # dimension(s) of grid array
-        self._xExtent = np.zeros(self._gridSamples)
-        self._dx = np.zeros(self._gridSamples)
+        self._xExtent = np.zeros(len(self._gridSamples))
+        self._dx = np.zeros(len(self._gridSamples))
         self._is1d = (np.size(self._gridSamples) == 1)
 
         # compute grid spacing and extent
@@ -67,7 +64,7 @@ class Analyzer(object):
         self._Vsamples = []
 
     def addData(self, psi, V, t):
-        """Add data at a given instant.
+        r"""Add data at a given instant.
 
         Parameters
         ----------
@@ -104,7 +101,7 @@ class AutoCorrelation(Analyzer):
         self._overlap = []
         for psi in self._psiSamples:
             if(self._is1d):
-                overlap = simps(self._psi0*np.conj(psi), dx=self._dx[0])  # simps() works with complex-valued samples
+                overlap = simpson(self._psi0*np.conj(psi), dx=self._dx[0])  # simpson() works with complex-valued samples
                 self._overlap.append(overlap)
             else:
                 raise NotImplementedError("2d overlap integrals are not implemented yet!")  # TODO: implement
@@ -116,7 +113,6 @@ class AutoCorrelation(Analyzer):
         plt.plot(self._tSamples, np.abs(self._overlap), c="b", lw=2, ls="-")
         plt.title(r"$\vert C(t)\vert$")
         plt.show()
-        np.savetxt("testCorr.dat", np.array([np.asarray(self._tSamples), np.real(np.asarray(self._overlap)), np.imag(np.asarray(self._overlap))]).transpose())
 
     def plotSpectrum(self, window="hamming"):
         """Plot Fourier transform of $C(t)$.
@@ -150,7 +146,6 @@ class AutoCorrelation(Analyzer):
         plt.plot(freqs, cOmega, c="b", lw=2, ls="-")
         plt.title(r"$\vert\tilde{C}(\omega)\vert^2$")
         plt.show()
-        np.savetxt("testSpectrum.dat", np.array([freqs, cOmega]).transpose())
 
 
 class Observables(Analyzer):
@@ -166,20 +161,20 @@ class Observables(Analyzer):
         self._posExp = []; self._momExp = []
 
         if(momExp and self._is1d): kVals = 2*np.pi*fftshift(fftfreq(self._gridSamples[0],
-                                                            self._xExtent[0]/self._gridSamples[0]))  # *2pi means 1/lambda --> k = p
+                                                            self._dx[0]))  # *2pi means 1/lambda --> k = p
 
         for psi in self._psiSamples:
             if(self._is1d):
                 if(posExp):
-                    xExp = simps(self._xGrid*np.abs(psi)**2, dx=self._dx[0])
+                    xExp = simpson(self._xGrid*np.abs(psi)**2, dx=self._dx[0])
                     self._posExp.append(xExp)
                 if(momExp):  # compute in momentum space (where the momentum operator is just a multiplication)
                     Psi = fftshift(fft(psi))/np.sqrt(self._gridSamples[0])
                     # ensure correct *physical* norm of k-space wave function:
-                    PsiNorm = simps(abs(Psi)**2, x=kVals)
+                    PsiNorm = simpson(abs(Psi)**2, x=kVals)
                     Psi /= np.sqrt(PsiNorm)
-                    #print("|psi| = %s, |Psi| = %s"%(simps(abs(psi)**2, x=self._xGrid), simps(abs(Psi)**2, x=pVals)))
-                    pExp = simps(kVals*np.abs(Psi)**2, dx=abs(kVals[1]-kVals[0]))
+                    #print("|psi| = %s, |Psi| = %s"%(simpson(abs(psi)**2, x=self._xGrid), simpson(abs(Psi)**2, x=pVals)))
+                    pExp = simpson(kVals*np.abs(Psi)**2, dx=abs(kVals[1]-kVals[0]))
                     self._momExp.append(pExp)
                     # TODO: maybe we can leave out the fftshift() call?
             else:
@@ -236,7 +231,7 @@ class EigenfunctionBuilder(Analyzer):
         pass
 
     def computeEigenfunction(self, E, window="hamming"):
-        """Build the eigenfunction that belongs the energy $E$.
+        r"""Build the eigenfunction that belongs to the energy $E$.
 
         Parameters
         ----------
@@ -265,7 +260,7 @@ class EigenfunctionBuilder(Analyzer):
         if(not self._is1d):
             raise NotImplementedError("Two dimensional computations are not implemented yet!")  # TODO: implement 2d
 
-        integrands = np.zeros([len(self._psiSamples[0]), len(self._tSamples)], dtype=np.complex)
+        integrands = np.zeros([len(self._psiSamples[0]), len(self._tSamples)], dtype=complex)
         windowArray = winFunc(len(self._tSamples))
         tSamples = np.asarray(self._tSamples)
         dt = tSamples[1] - tSamples[0]
@@ -274,7 +269,7 @@ class EigenfunctionBuilder(Analyzer):
         for i in range(len(self._tSamples)):  # build exp(i E_n t_n) psi_{x_n, t_n} array
             integrands[:, i] = np.exp(1j*E*tSamples[i])*psiSamples[i]*windowArray[i]
 
-        return simps(integrands, dx=dt)  # simps() integrates the last axis, here: the *time* axis
+        return simpson(integrands, dx=dt)  # simpson() integrates the last axis, here: the *time* axis
 
     def plotEigenfunction(self, E):
         """Plot eigenfunction for energy E.
