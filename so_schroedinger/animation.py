@@ -28,13 +28,15 @@ def animate1d(
     ax=None,
     ylim=None,
     close_figure=True,
+    live=False,
 ):
     r"""Animate the propagation of a wavepacket on a 1d grid.
 
-    The propagation is done up front: each frame is ``steps_per_frame`` time
-    steps after the previous one, and ``grid`` holds the final state
-    afterwards. The returned animation can therefore be rendered or saved
-    several times with identical results.
+    Each frame is ``steps_per_frame`` time steps after the previous one. By
+    default the propagation is done up front and ``grid`` holds the final
+    state afterwards; the returned animation can then be rendered or saved
+    several times with identical results. With ``live=True`` the grid is
+    propagated while the animation is drawn instead, see below.
 
     Parameters
     ----------
@@ -67,6 +69,12 @@ def animate1d(
     close_figure : bool, optional
         Close the figure so that notebooks do not show an extra static
         image. Pass False to show the animation with ``plt.show()``.
+    live : bool, optional
+        Propagate frame by frame while the animation is drawn instead of up
+        front. The animation then starts at once in an interactive window
+        (``plt.show()`` or ``%matplotlib widget``) and no frames are stored,
+        which helps for long runs on large grids. Such an animation can be
+        drawn only once, and analyzers are called as the frames are drawn.
 
     Returns
     -------
@@ -80,7 +88,7 @@ def animate1d(
 
     x = grid.x_vals
     rho0 = grid.density.copy()
-    frames = _record(grid, propagator, dt, int(n_frames), int(steps_per_frame), analyzers)
+    frames = _Frames(grid, propagator, dt, n_frames, steps_per_frame, analyzers, lambda g: g.psi.copy(), live)
 
     rho_max = np.max(rho0)
     if scale_pot is None:
@@ -131,17 +139,44 @@ def animate1d(
     return anim
 
 
-def _record(grid, propagator, dt, n_frames, steps_per_frame, analyzers):
-    """Propagate and store (t, psi, V) for each frame; V only if it changes."""
+class _Frames:
+    """The frames ``(t, data, V)`` of an animation, V only if it changes.
 
-    frames = []
-    for i in range(n_frames):
-        if i > 0:
-            propagator.propagate(grid, dt, steps_per_frame)
-        for analyzer in analyzers or []:
-            analyzer(grid)
-        frames.append((grid.t, grid.psi.copy(), grid.V.copy() if grid.update_pot else None))
-    return frames
+    Without ``live``, all frames are computed and stored up front. With
+    ``live``, frame i is computed when it is first asked for; frames must
+    then be asked for in order, as an animation draws them.
+    """
+
+    def __init__(self, grid, propagator, dt, n_frames, steps_per_frame, analyzers, snapshot, live):
+        self._grid, self._propagator, self._dt = grid, propagator, dt
+        self._n, self._steps = int(n_frames), int(steps_per_frame)
+        self._analyzers, self._snapshot, self._live = analyzers or [], snapshot, live
+        self._index, self._current = 0, self._take()
+        self._stored = None if live else [self._current] + [self._advance() for _ in range(1, self._n)]
+
+    def _take(self):
+        for analyzer in self._analyzers:
+            analyzer(self._grid)
+        grid = self._grid
+        return (grid.t, self._snapshot(grid), grid.V.copy() if grid.update_pot else None)
+
+    def _advance(self):
+        self._propagator.propagate(self._grid, self._dt, self._steps)
+        self._index += 1
+        self._current = self._take()
+        return self._current
+
+    def __len__(self):
+        return self._n
+
+    def __getitem__(self, i):
+        if self._stored is not None:
+            return self._stored[i]
+        if i == self._index + 1:
+            self._advance()
+        elif i != self._index:
+            raise RuntimeError("A live animation can be drawn only once; use live=False to draw it again.")
+        return self._current
 
 
 def complex_to_rgb(psi, vmax=None):
@@ -177,11 +212,12 @@ def animate2d(
     interval=40,
     ax=None,
     close_figure=True,
+    live=False,
 ):
     r"""Animate the propagation of a wavepacket on a 2d grid.
 
     As in :func:`animate1d`, the propagation is done up front and ``grid``
-    holds the final state afterwards.
+    holds the final state afterwards, unless ``live=True``.
 
     Parameters
     ----------
@@ -214,6 +250,8 @@ def animate2d(
         Axes to draw into. A new figure is created if omitted.
     close_figure : bool, optional
         Close the figure so that notebooks do not show an extra static image.
+    live : bool, optional
+        Propagate while the animation is drawn, see :func:`animate1d`.
 
     Returns
     -------
@@ -227,14 +265,10 @@ def animate2d(
     else:
         fig = ax.figure
 
-    frames = []
-    for i in range(int(n_frames)):
-        if i > 0:
-            propagator.propagate(grid, dt, steps_per_frame)
-        for analyzer in analyzers or []:
-            analyzer(grid)
-        data = grid.density.astype(np.float32) if mode == "density" else grid.psi.astype(np.complex64)
-        frames.append((grid.t, data, np.real(grid.V).copy() if grid.update_pot else None))
+    def snapshot(g):
+        return g.density.astype(np.float32) if mode == "density" else g.psi.astype(np.complex64)
+
+    frames = _Frames(grid, propagator, dt, n_frames, steps_per_frame, analyzers, snapshot, live)
 
     def image(data):
         if mode == "density":
@@ -262,7 +296,7 @@ def animate2d(
                 grid.x_vals, grid.y_vals, V.T, levels=potential_levels, colors="white", linewidths=0.6, alpha=0.6
             )
 
-    draw_contours(np.real(grid.V) if frames[0][2] is None else frames[0][2])
+    draw_contours(np.real(grid.V) if frames[0][2] is None else np.real(frames[0][2]))
     time_text = ax.text(0.02, 0.97, "", transform=ax.transAxes, va="top", color="white")
     ax.set_xlabel("$x$")
     ax.set_ylabel("$y$")
@@ -271,7 +305,7 @@ def animate2d(
         t, data, V = frames[i]
         im.set_data(image(data))
         if V is not None:
-            draw_contours(V)
+            draw_contours(np.real(V))
         time_text.set_text(f"$t = {t:.2f}$")
         return [im, time_text]
 

@@ -128,6 +128,12 @@ The propagation is done before the animation is drawn, so an animation can be
 rendered or saved several times. See `examples/animate_barrier.py` for a
 standalone script.
 
+For long runs on large grids, `live=True` propagates frame by frame while the
+animation is drawn instead. An interactive window (`plt.show()` in a script,
+`%matplotlib widget` in Jupyter) then starts at once, and no frames are kept
+in memory; such an animation can be drawn only once. See
+`examples/live_stadium.py`.
+
 ## Notebooks
 
 The `notebooks/` folder contains illustrated examples:
