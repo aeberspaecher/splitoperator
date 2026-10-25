@@ -1,5 +1,7 @@
 # so_schroedinger
 
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/aeberspaecher/splitoperator/main?urlpath=lab/tree/notebooks)
+
 Split operator time propagation for the time-dependent Schrödinger equation,
 written in pure Python on top of NumPy's FFT.
 
@@ -149,28 +151,25 @@ in memory; such an animation can be drawn only once. See
 
 ## Notebooks
 
-The `notebooks/` folder contains illustrated examples:
+The `notebooks/` folder contains illustrated examples. They run in the
+browser without installing anything: on Binder (all notebooks, with the
+package preinstalled; the first start takes a few minutes) or on Google
+Colab (one notebook at a time; its first cell installs the package).
 
-1. `01_free_wavepacket.ipynb`: spreading of a free Gaussian, compared with the
-   analytic solution
-2. `02_tunneling.ipynb`: tunneling through a rectangular barrier, transmission
-   versus energy compared with the plane wave formula, and sliders for
-   barrier height, width and packet energy
-3. `03_harmonic_oscillator.ipynb`: coherent states, ground state from
-   imaginary time evolution (ground and excited states), spectrum and
-   eigenstates from the autocorrelation function
-4. `04_branched_flow.ipynb`: a wave in a weak, smooth random potential
-   splits into branches; quantum density compared with classical rays
-5. `05_stadium_billiard.ipynb`: chaotic dynamics in the Bunimovich stadium
-   versus the circle, spectrum and eigenstates scarred by a periodic orbit
-6. `06_talbot_carpet.ipynb`: quantum carpet and exact and fractional revivals
-   in an infinite well, and how finite walls spoil the revival
-7. `07_anderson_localization.ipynb`: a wavepacket stops spreading in a weak
-   1d random potential; exponential tails and the localization length versus
-   energy compared with the Born approximation
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/aeberspaecher/splitoperator/main?urlpath=lab/tree/notebooks)
 
-Install the extras with `pip install ".[notebooks]"` and start
-`jupyter lab notebooks/`.
+| Notebook | Content | |
+|---|---|---|
+| `01_free_wavepacket.ipynb` | spreading of a free Gaussian, compared with the analytic solution | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/01_free_wavepacket.ipynb) |
+| `02_tunneling.ipynb` | tunneling through a rectangular barrier, transmission versus energy compared with the plane wave formula, and sliders for barrier height, width and packet energy | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/02_tunneling.ipynb) |
+| `03_harmonic_oscillator.ipynb` | coherent states, ground state from imaginary time evolution (ground and excited states), spectrum and eigenstates from the autocorrelation function | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/03_harmonic_oscillator.ipynb) |
+| `04_branched_flow.ipynb` | a wave in a weak, smooth random potential splits into branches; quantum density compared with classical rays | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/04_branched_flow.ipynb) |
+| `05_stadium_billiard.ipynb` | chaotic dynamics in the Bunimovich stadium versus the circle, spectrum and eigenstates scarred by a periodic orbit | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/05_stadium_billiard.ipynb) |
+| `06_talbot_carpet.ipynb` | quantum carpet and exact and fractional revivals in an infinite well, and how finite walls spoil the revival | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/06_talbot_carpet.ipynb) |
+| `07_anderson_localization.ipynb` | a wavepacket stops spreading in a weak 1d random potential; exponential tails and the localization length versus energy compared with the Born approximation | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/07_anderson_localization.ipynb) |
+
+To run them locally, install the extras with `pip install ".[notebooks]"` and
+start `jupyter lab notebooks/`.
 
 ## Contents
 
