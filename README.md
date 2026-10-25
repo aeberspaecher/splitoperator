@@ -49,6 +49,21 @@ The propagation is done before the animation is drawn, so an animation can be
 rendered or saved several times. See `examples/animate_barrier.py` for a
 standalone script.
 
+## Notebooks
+
+The `notebooks/` folder contains illustrated examples:
+
+1. `01_free_wavepacket.ipynb`: spreading of a free Gaussian, compared with the
+   analytic solution
+2. `02_tunneling.ipynb`: tunneling through a rectangular barrier, transmission
+   versus energy compared with the plane wave formula
+3. `03_harmonic_oscillator.ipynb`: coherent states, ground state from
+   imaginary time evolution, spectrum and eigenstates from the
+   autocorrelation function
+
+Install the extras with `pip install ".[notebooks]"` and start
+`jupyter lab notebooks/`.
+
 ## Contents
 
 - `so_schroedinger.grid`: periodic 1d grid holding ψ and V
