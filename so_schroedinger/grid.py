@@ -17,7 +17,7 @@ class Grid:
     potential at a given time t. It also knows about the initial
     wavepacket."""
 
-    def __init__(self, dim, potential, psi0, absorber=None):
+    def __init__(self, dim, potential, psi0, absorber=None, dtype=np.complex128):
         """Create a grid.
 
         Parameters
@@ -30,8 +30,13 @@ class Grid:
             Initial wavepacket object.
         absorber : Potential object, optional
             Absorbing boundary potential.
+        dtype : {numpy.complex128, numpy.complex64}, optional
+            Precision of the wavefunction and the potential.
         """
 
+        self.dtype = np.dtype(dtype)
+        if self.dtype not in (np.complex64, np.complex128):
+            raise ValueError("dtype must be complex64 or complex128")
         self.dim = dim
         self._potential = potential
         self._absorber = absorber
@@ -46,7 +51,7 @@ class Grid:
 
     @psi.setter
     def psi(self, value):
-        self._psi = np.asarray(value, dtype=complex)
+        self._psi = np.asarray(value, dtype=self.dtype)
 
     @property
     def V(self):
@@ -82,13 +87,13 @@ class Grid:
     def update_potential(self, t):
         """Update potential for time $t$."""
 
-        self._pot = np.asarray(self._potential.V(self._r, t), dtype=complex) + self._absorber0
+        self._pot = (np.asarray(self._potential.V(self._r, t), dtype=complex) + self._absorber0).astype(self.dtype)
         self._pot_t = t
 
     def renormalize_psi(self):
         r"""Renormalize $\psi$ such that $\Vert\psi\Vert = 1$."""
 
-        self._psi = self._psi / self.psi_norm
+        self.psi = self._psi / self.psi_norm
 
     def _initialize(self):
         """Sample absorber, potential and initial wavefunction on the grid
@@ -137,7 +142,7 @@ class Grid1d(Grid):
     included, as appropriate for the periodicity implied by the FFT.
     """
 
-    def __init__(self, size, grid_samples, potential, psi0, absorber=None):
+    def __init__(self, size, grid_samples, potential, psi0, absorber=None, dtype=np.complex128):
         """Create a 1d grid.
 
         Parameters
@@ -152,9 +157,13 @@ class Grid1d(Grid):
             Initial wavepacket object.
         absorber : Potential object, optional
             Absorbing boundary potential.
+        dtype : {numpy.complex128, numpy.complex64}, optional
+            Precision of the wavefunction and the potential; complex64
+            halves memory and is faster for large grids, at a relative
+            accuracy of about 1e-6.
         """
 
-        super().__init__(1, potential, psi0, absorber)
+        super().__init__(1, potential, psi0, absorber, dtype)
         if np.ndim(grid_samples) > 0:
             grid_samples = grid_samples[0]
         self.grid_samples = int(grid_samples)
@@ -202,7 +211,7 @@ class Grid2d(Grid):
     with ``r = (X, Y)``, a tuple of coordinate arrays.
     """
 
-    def __init__(self, size, grid_samples, potential, psi0, absorber=None):
+    def __init__(self, size, grid_samples, potential, psi0, absorber=None, dtype=np.complex128):
         """Create a 2d grid.
 
         Parameters
@@ -217,9 +226,13 @@ class Grid2d(Grid):
             Initial wavepacket object.
         absorber : Potential object, optional
             Absorbing boundary potential.
+        dtype : {numpy.complex128, numpy.complex64}, optional
+            Precision of the wavefunction and the potential; complex64
+            halves memory and is faster for large grids, at a relative
+            accuracy of about 1e-6.
         """
 
-        super().__init__(2, potential, psi0, absorber)
+        super().__init__(2, potential, psi0, absorber, dtype)
         if np.ndim(grid_samples) == 0:
             grid_samples = (grid_samples, grid_samples)
         self.grid_samples = (int(grid_samples[0]), int(grid_samples[1]))

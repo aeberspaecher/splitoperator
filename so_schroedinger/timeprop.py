@@ -176,7 +176,7 @@ class SplitOperator(Propagator):
             factors = {}
             self._pot_cache = (grid.V, factors)
         if dt not in factors:
-            factors[dt] = np.exp(-1j * grid.V * dt)
+            factors[dt] = np.exp(-1j * grid.V * dt).astype(grid.dtype, copy=False)
         grid.psi *= factors[dt]
 
     def _apply_kinetic_part(self, grid, dt):
@@ -192,7 +192,7 @@ class SplitOperator(Propagator):
             factors = {}
             self._kin_cache = (grid.k_squared, factors)
         if dt not in factors:
-            factors[dt] = np.exp(-1j * grid.k_squared * dt / 2.0)
+            factors[dt] = np.exp(-1j * grid.k_squared * dt / 2.0).astype(grid.dtype)
         Psi = scipy.fft.fftn(grid.psi, workers=self.workers)
         Psi *= factors[dt]
         grid.psi = scipy.fft.ifftn(Psi, workers=self.workers, overwrite_x=True)

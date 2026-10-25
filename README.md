@@ -60,6 +60,18 @@ steps of consecutive steps, which is exact and saves one array multiplication
 per step. On a 4-core machine a step on a 512×512 grid takes about 3.4 ms
 (11.5 ms in version 0.4.0) and a step on 2048 points in 1d about 48 µs (86 µs).
 
+Grids take `dtype=np.complex64` for single precision, which halves the memory
+of the wavefunction, the potential and recorded frames, and makes the 512×512
+step about 1.5 times faster (2.7 ms against 4.2 ms here). Results then agree
+with double precision to a few parts in 10⁶, but the norm drifts by about
+5·10⁻⁸ per step from rounding (3·10⁻⁴ after 6000 steps), so long runs that
+need it exact should use `SplitOperator(renormalize_every=...)` or stay in
+double precision.
+
+```python
+grid = so.Grid2d(((-20, 20), (-20, 20)), 1024, pot, psi0, dtype=np.complex64)
+```
+
 ## Two dimensions
 
 `Grid2d` works like `Grid1d`; potentials and wavepackets are evaluated with
