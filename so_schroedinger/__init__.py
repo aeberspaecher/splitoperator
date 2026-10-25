@@ -9,5 +9,6 @@ from .potentials import *
 from .wavepackets import *
 from .timeprop import *
 from . import analyzers
+from .animation import animate1d
 
 __version__ = "0.2.0"
