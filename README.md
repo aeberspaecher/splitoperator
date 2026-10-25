@@ -135,7 +135,8 @@ The `notebooks/` folder contains illustrated examples:
 1. `01_free_wavepacket.ipynb`: spreading of a free Gaussian, compared with the
    analytic solution
 2. `02_tunneling.ipynb`: tunneling through a rectangular barrier, transmission
-   versus energy compared with the plane wave formula
+   versus energy compared with the plane wave formula, and sliders for
+   barrier height, width and packet energy
 3. `03_harmonic_oscillator.ipynb`: coherent states, ground state from
    imaginary time evolution (ground and excited states), spectrum and
    eigenstates from the autocorrelation function
