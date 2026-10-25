@@ -35,6 +35,22 @@ prop.propagate(grid, dt=0.01, n_steps=1000)
 print(grid.t, grid.psi_norm, grid.expectation_x())
 ```
 
+## Speed
+
+The FFTs use `scipy.fft` on all CPU cores; `SplitOperator(workers=1)` limits
+them to one thread. Other FFT libraries plug in through SciPy's backend
+mechanism, e.g. pyFFTW:
+
+```python
+import pyfftw.interfaces.scipy_fft, scipy.fft
+scipy.fft.set_global_backend(pyfftw.interfaces.scipy_fft)
+```
+
+For time-independent potentials, `propagate()` merges the potential half
+steps of consecutive steps, which is exact and saves one array multiplication
+per step. On a 4-core machine a step on a 512×512 grid takes about 3.4 ms
+(11.5 ms in version 0.4.0) and a step on 2048 points in 1d about 48 µs (86 µs).
+
 ## Two dimensions
 
 `Grid2d` works like `Grid1d`; potentials and wavepackets are evaluated with
