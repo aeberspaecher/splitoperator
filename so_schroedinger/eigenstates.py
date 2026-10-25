@@ -43,7 +43,8 @@ def lowest_eigenstates(grid, n_states, dt=0.01, tol=1e-10, max_steps=100_000, ch
     dt : float, optional
         Imaginary time step $\tau$.
     tol : float, optional
-        Convergence tolerance for the energy.
+        Convergence tolerance for the energy; for a complex64 grid it is at
+        least ``10 * numpy.finfo(numpy.float32).eps``, about 1e-6.
     max_steps : int, optional
         Maximum number of steps per state; a warning is logged if a state
         has not converged by then.
@@ -64,6 +65,7 @@ def lowest_eigenstates(grid, n_states, dt=0.01, tol=1e-10, max_steps=100_000, ch
         raise ValueError("Eigenstates need a time-independent potential.")
 
     rng = np.random.default_rng(rng)
+    tol = max(tol, 10 * np.finfo(grid.psi.dtype).eps)
     prop = SplitOperator()
     tau = -1j * abs(dt)
     t_start = grid.t
