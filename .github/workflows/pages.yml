@@ -1,7 +1,8 @@
-name: jupyterlite
+name: pages
 
-# Builds a JupyterLite site with the notebooks and the package, so they run
-# fully in the browser (Pyodide kernel), and deploys it to GitHub Pages.
+# Builds the documentation (MkDocs, at the site root) and a JupyterLite site
+# with the notebooks and the package under lite/, so the notebooks run fully
+# in the browser (Pyodide kernel), and deploys both to GitHub Pages.
 on:
   push:
     branches: [main]
@@ -19,9 +20,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install build jupyterlite-core jupyterlite-pyodide-kernel jupyter-server jupyterlab_widgets
+      - run: pip install build jupyterlite-core jupyterlite-pyodide-kernel jupyter-server jupyterlab_widgets ".[docs]"
+      - run: mkdocs build --strict --site-dir _site
       - run: python -m build --wheel
-      - run: jupyter lite build --contents notebooks --piplite-wheels dist/*.whl --output-dir _site
+      - run: jupyter lite build --contents notebooks --piplite-wheels dist/*.whl --output-dir _site/lite
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

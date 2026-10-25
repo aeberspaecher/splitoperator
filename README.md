@@ -1,7 +1,8 @@
 # so_schroedinger
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/aeberspaecher/splitoperator/main?urlpath=lab/tree/notebooks)
-[![JupyterLite](https://jupyterlite.rtfd.io/en/latest/_static/badge.svg)](https://aeberspaecher.github.io/splitoperator/lab/index.html)
+[![JupyterLite](https://jupyterlite.rtfd.io/en/latest/_static/badge.svg)](https://aeberspaecher.github.io/splitoperator/lite/lab/index.html)
+[![Docs](https://img.shields.io/badge/docs-API-blue)](https://aeberspaecher.github.io/splitoperator/)
 
 Split operator time propagation for the time-dependent Schrödinger equation,
 written in pure Python on top of NumPy's FFT.
@@ -21,10 +22,12 @@ All quantities are in atomic units (ħ = m = 1).
 ## Installation
 
 ```bash
-pip install .            # or: pip install -e ".[test]" for development
+pip install so_schroedinger
 ```
 
-Requires Python ≥ 3.10, NumPy, SciPy and Matplotlib.
+or from a checkout, `pip install .` (`pip install -e ".[test]"` for
+development). Requires Python ≥ 3.10, NumPy, SciPy and Matplotlib. The API
+documentation is at https://aeberspaecher.github.io/splitoperator/.
 
 ## Example
 
@@ -71,6 +74,10 @@ double precision.
 ```python
 grid = so.Grid2d(((-20, 20), (-20, 20)), 1024, pot, psi0, dtype=np.complex64)
 ```
+
+`python benchmarks/benchmark.py` times steps for 1d and 2d grids in both
+precisions and at orders 2 and 4 (`--quick` for the smaller grids only,
+`--pyfftw` to use pyFFTW, `--help` for the rest).
 
 ## Two dimensions
 
@@ -175,7 +182,7 @@ starts in seconds and needs no server, but it is slower than native Python
 and the animation cells take a while.
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/aeberspaecher/splitoperator/main?urlpath=lab/tree/notebooks)
-[![JupyterLite](https://jupyterlite.rtfd.io/en/latest/_static/badge.svg)](https://aeberspaecher.github.io/splitoperator/lab/index.html)
+[![JupyterLite](https://jupyterlite.rtfd.io/en/latest/_static/badge.svg)](https://aeberspaecher.github.io/splitoperator/lite/lab/index.html)
 
 | Notebook | Content | |
 |---|---|---|
@@ -214,6 +221,26 @@ The tests check the propagator against analytic results: norm conservation,
 spreading of a free Gaussian, a coherent state in a harmonic oscillator and
 the oscillator ground state energy from imaginary time evolution.
 
+## Documentation
+
+The API documentation is built with MkDocs from the docstrings:
+
+```bash
+pip install -e ".[docs]"
+mkdocs serve
+```
+
+On every push to `main`, the `pages` workflow publishes it on GitHub Pages
+together with the JupyterLite notebooks (under `lite/`).
+
+## Releases
+
+The changes are listed in [CHANGELOG.md](https://github.com/aeberspaecher/splitoperator/blob/main/CHANGELOG.md).
+To release, bump the version in `pyproject.toml` and
+`so_schroedinger/__init__.py`, add the changelog entry, and publish a GitHub
+release with a tag `vX.Y.Z`; the `release` workflow then uploads the sdist
+and wheel to PyPI with trusted publishing.
+
 ## Code style
 
 The code follows PEP 8: `snake_case` for functions, methods, arguments and
@@ -226,13 +253,6 @@ ruff check .
 ruff format .
 ```
 
-Version 0.4.0 reworked the analyzers: they take the grid instead of
-`(psi, V, t)`, no longer plot, and return arrays instead.
-
-Version 0.3.0 renamed the former camelCase API, e.g. `psiNorm` →
-`psi_norm`, `expectationX()` → `expectation_x()`, `nSteps` → `n_steps`,
-`nFrames`/`stepsPerFrame` → `n_frames`/`steps_per_frame`.
-
 ## License
 
-BSD 2-Clause, see [LICENSE](LICENSE).
+BSD 2-Clause, see [LICENSE](https://github.com/aeberspaecher/splitoperator/blob/main/LICENSE).

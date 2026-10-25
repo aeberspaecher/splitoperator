@@ -1,0 +1,61 @@
+site_name: so_schroedinger
+site_description: Split operator time propagation for the time-dependent Schrödinger equation
+repo_url: https://github.com/aeberspaecher/splitoperator
+edit_uri: ""
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+
+nav:
+  - Home: index.md
+  - Notebooks in the browser: https://aeberspaecher.github.io/splitoperator/lite/lab/index.html
+  - API:
+      - Grids: api/grid.md
+      - Propagation: api/timeprop.md
+      - Eigenstates: api/eigenstates.md
+      - Potentials: api/potentials.md
+      - Wavepackets: api/wavepackets.md
+      - Analyzers: api/analyzers.md
+      - Plotting: api/plotting.md
+      - Animation: api/animation.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+            members_order: source
+            show_source: false
+            show_root_heading: false
+            show_symbol_type_heading: true
+            heading_level: 2
+            filters: ["!^_"]
+            merge_init_into_class: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      check_paths: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js
