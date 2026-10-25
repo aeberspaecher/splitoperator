@@ -7,7 +7,9 @@ The propagator uses the symmetrized (Strang) splitting
 
     exp(-i H dt) ≈ exp(-i V dt/2) · exp(-i T dt) · exp(-i V dt/2)
 
-where the kinetic part is applied in momentum space. Complex time steps
+where the kinetic part is applied in momentum space. Time-dependent
+potentials enter as V(t) in the first and V(t+dt) in the second half step,
+which keeps the scheme second order. Complex time steps
 `dt = -i τ` give imaginary time evolution, which relaxes to the ground state.
 All quantities are in atomic units (ħ = m = 1).
 

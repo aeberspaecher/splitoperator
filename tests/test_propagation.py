@@ -85,3 +85,30 @@ def test_callbacks_and_renormalization_keep_their_schedule():
     assert times == pytest.approx([0.06, 0.12, 0.18, 0.24, 0.30])
     assert norms[1] == pytest.approx(1.0)  # step 12 is a renormalization step
     assert norms[0] != pytest.approx(1.0)  # step 6 is not
+
+
+class DrivenOscillator(so.Potential1d):
+    """V = omega^2 x^2/2 - F sin(omega_d t) x; <x> follows the classical forced oscillator."""
+
+    is_time_dependent = True
+
+    def __init__(self, omega, force, omega_d):
+        self.omega, self.force, self.omega_d = omega, force, omega_d
+
+    def V(self, x, t):
+        return 0.5 * self.omega**2 * x**2 - self.force * np.sin(self.omega_d * t) * x + 0j
+
+
+def test_time_dependent_potential_is_second_order():
+    omega, force, omega_d, x0, t_end = 1.0, 1.0, 2.5, 1.0, 4.0
+    A = force / (omega**2 - omega_d**2)
+    x_exact = x0 * np.cos(omega * t_end) - A * omega_d / omega * np.sin(omega * t_end) + A * np.sin(omega_d * t_end)
+
+    potential, psi0 = DrivenOscillator(omega, force, omega_d), so.CoherentState(x0, omega, 0.0)
+    errors = []
+    for dt in (0.04, 0.02):
+        grid = make_grid(potential, psi0, (-20.0, 20.0), 2**10)
+        so.SplitOperator().propagate(grid, dt, round(t_end / dt), callback=lambda g: None, every=7)
+        errors.append(abs(grid.expectation_x() - x_exact))
+        assert grid.V == pytest.approx(grid._potential.V(grid.x_vals, grid.t))  # V belongs to the current time
+    assert errors[0] / errors[1] == pytest.approx(4.0, rel=0.1)
