@@ -143,6 +143,11 @@ The `notebooks/` folder contains illustrated examples:
    splits into branches; quantum density compared with classical rays
 5. `05_stadium_billiard.ipynb`: chaotic dynamics in the Bunimovich stadium
    versus the circle, spectrum and eigenstates scarred by a periodic orbit
+6. `06_talbot_carpet.ipynb`: quantum carpet and exact and fractional revivals
+   in an infinite well, and how finite walls spoil the revival
+7. `07_anderson_localization.ipynb`: a wavepacket stops spreading in a weak
+   1d random potential; exponential tails and the localization length versus
+   energy compared with the Born approximation
 
 Install the extras with `pip install ".[notebooks]"` and start
 `jupyter lab notebooks/`.
