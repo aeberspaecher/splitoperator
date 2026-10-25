@@ -61,8 +61,8 @@ series.
 from IPython.display import HTML
 
 anim = so.animate1d(grid, so.SplitOperator(), dt=0.02, n_frames=150, steps_per_frame=10)
-HTML(anim.to_jshtml())        # in a Jupyter notebook
-anim.save("barrier.gif")      # or .mp4 (needs ffmpeg)
+HTML(anim.to_jshtml())  # in a Jupyter notebook
+anim.save("barrier.gif")  # or .mp4 (needs ffmpeg)
 ```
 
 The propagation is done before the animation is drawn, so an animation can be
@@ -108,6 +108,22 @@ pytest
 The tests check the propagator against analytic results: norm conservation,
 spreading of a free Gaussian, a coherent state in a harmonic oscillator and
 the oscillator ground state energy from imaginary time evolution.
+
+## Code style
+
+The code follows PEP 8: `snake_case` for functions, methods, arguments and
+variables, `CapWords` for classes. Physics symbols keep their usual capitals
+(`V0`, `E0`, `R`, `delta_E`, ...). Linting and formatting use
+[ruff](https://docs.astral.sh/ruff/), configured in `pyproject.toml`:
+
+```bash
+ruff check .
+ruff format .
+```
+
+Version 0.3.0 renamed the former camelCase API, e.g. `psiNorm` →
+`psi_norm`, `expectationX()` → `expectation_x()`, `nSteps` → `n_steps`,
+`nFrames`/`stepsPerFrame` → `n_frames`/`steps_per_frame`.
 
 ## License
 

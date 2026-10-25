@@ -1,4 +1,5 @@
 import matplotlib
+
 matplotlib.use("Agg")
 
 import numpy as np
@@ -24,12 +25,12 @@ def test_free_gaussian2d_spreads_and_moves():
     so.SplitOperator().propagate(grid, 0.02, 100)
     t = 2.0
     xm, ym = grid.expectation_r()
-    assert xm == pytest.approx(-5.0 + px*t, abs=1e-6)
-    assert ym == pytest.approx(2.0 + py*t, abs=1e-6)
+    assert xm == pytest.approx(-5.0 + px * t, abs=1e-6)
+    assert ym == pytest.approx(2.0 + py * t, abs=1e-6)
     assert grid.expectation_p() == pytest.approx((px, py), abs=1e-6)
-    rho = grid.density/np.sum(grid.density)
-    wx = np.sqrt(np.sum((grid.X - xm)**2*rho))
-    assert wx == pytest.approx(sx/np.sqrt(2)*np.sqrt(1 + t**2/sx**4), rel=1e-6)
+    rho = grid.density / np.sum(grid.density)
+    wx = np.sqrt(np.sum((grid.X - xm) ** 2 * rho))
+    assert wx == pytest.approx(sx / np.sqrt(2) * np.sqrt(1 + t**2 / sx**4), rel=1e-6)
     assert grid.psi_norm == pytest.approx(1.0, abs=1e-10)
 
 
@@ -38,7 +39,7 @@ def test_imaginary_time_ground_state_2d():
     grid = so.Grid2d(((-8, 8), (-8, 8)), 64, so.HarmOscPot2d(wx, wy), so.Gaussian2d(1.0, -0.5, 1.5))
     prop = so.SplitOperator(renormalize_every=1)
     prop.propagate(grid, -0.01j, 1500)
-    assert prop.ground_state_energy == pytest.approx((wx + wy)/2, rel=1e-3)
+    assert prop.ground_state_energy == pytest.approx((wx + wy) / 2, rel=1e-3)
 
 
 def test_stadium_signed_distance():
@@ -52,7 +53,7 @@ def test_stadium_signed_distance():
 
 def test_random_potential2d():
     x, y = np.linspace(0, 64, 256, endpoint=False), np.linspace(0, 32, 128, endpoint=False)
-    corr = lambda dx, dy: np.exp(-(dx**2 + dy**2)/2)
+    corr = lambda dx, dy: np.exp(-(dx**2 + dy**2) / 2)
     pot = so.RandomPotential2d(corr, x, y, 0.3, rng=3)
     X, Y = np.meshgrid(x, y, indexing="ij")
     V = pot.V((X, Y), 0.0)
@@ -80,15 +81,15 @@ def test_eigenstate_filter_finds_oscillator_states():
     filt = so.analyzers.EigenstateFilter([0.5, 1.5], t_max)
     prop = so.SplitOperator()
     filt.add_data(grid.psi, grid.t, dt)
-    for i in range(int(t_max/dt)):
+    for _ in range(int(t_max / dt)):
         prop.step(grid, dt)
         filt.add_data(grid.psi, grid.t, dt)
     phi0, phi1 = filt.eigenstates(grid.dx)
     x = grid.x_vals
-    exact0 = np.exp(-x**2/2)/np.pi**0.25
-    exact1 = np.sqrt(2)*x*np.exp(-x**2/2)/np.pi**0.25
-    assert abs(np.sum(exact0*phi0)*grid.dx) == pytest.approx(1.0, abs=1e-3)
-    assert abs(np.sum(exact1*phi1)*grid.dx) == pytest.approx(1.0, abs=1e-3)
+    exact0 = np.exp(-(x**2) / 2) / np.pi**0.25
+    exact1 = np.sqrt(2) * x * np.exp(-(x**2) / 2) / np.pi**0.25
+    assert abs(np.sum(exact0 * phi0) * grid.dx) == pytest.approx(1.0, abs=1e-3)
+    assert abs(np.sum(exact1 * phi1) * grid.dx) == pytest.approx(1.0, abs=1e-3)
 
 
 @pytest.mark.parametrize("mode", ["density", "phase"])

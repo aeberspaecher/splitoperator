@@ -1,5 +1,4 @@
-"""Grids hold the discretized wavefunction and potential.
-"""
+"""Grids hold the discretized wavefunction and potential."""
 
 import logging
 
@@ -11,12 +10,12 @@ __all__ = ["Grid", "Grid1d", "Grid2d"]
 log = logging.getLogger(__name__)
 
 
-#-----------------------------------------------------------------------
+# -----------------------------------------------------------------------
 # Grids:
 class Grid:
     """A grid object holds discrete representations of the wavepacket and the
     potential at a given time t. It also knows about the initial
-    wavepacket. """
+    wavepacket."""
 
     def __init__(self, dim, potential, psi0, absorber=None):
         """Create a grid.
@@ -57,31 +56,29 @@ class Grid:
     @property
     def psi_norm(self):
         r"""Norm $\Vert\psi\Vert$."""
-        return np.sqrt(np.sum(np.abs(self._psi)**2)*self.dV)
+        return np.sqrt(np.sum(np.abs(self._psi) ** 2) * self.dV)
 
     @property
     def density(self):
         r"""Probability density $\vert\psi\vert^2$."""
-        return np.abs(self._psi)**2
+        return np.abs(self._psi) ** 2
 
     def update_potential(self, t):
-        """Update potential for time $t$.
-        """
+        """Update potential for time $t$."""
 
         self._pot = np.asarray(self._potential.V(self._r, t), dtype=complex) + self._absorber0
 
     def renormalize_psi(self):
-        r"""Renormalize $\psi$ such that $\Vert\psi\Vert = 1$.
-        """
+        r"""Renormalize $\psi$ such that $\Vert\psi\Vert = 1$."""
 
-        self._psi = self._psi/self.psi_norm
+        self._psi = self._psi / self.psi_norm
 
     def _initialize(self):
         """Sample absorber, potential and initial wavefunction on the grid
         positions ``self._r``; called by derived classes once the grid is set
         up."""
 
-        if(self._absorber is not None):
+        if self._absorber is not None:
             self._absorber0 = np.asarray(self._absorber.V(self._r, 0.0), dtype=complex)
         else:
             self._absorber0 = 0.0
@@ -90,7 +87,7 @@ class Grid:
 
         log.info("Maximum potential (real) value on grid V_max = %s", np.max(np.real(self._pot)))
         log.info("Minimum potential (real) value on grid V_min = %s", np.min(np.real(self._pot)))
-        log.info("Maximum kinetic energy supported by grid T_max = %s", np.max(self.k_squared/2.0))
+        log.info("Maximum kinetic energy supported by grid T_max = %s", np.max(self.k_squared / 2.0))
 
     def suggest_time_step(self, safety=3.0):
         r"""Suggest a time step from the potential landscape elevation. The
@@ -112,7 +109,7 @@ class Grid:
             Suggested time step.
         """
 
-        return 2*np.pi/(safety*(np.max(np.real(self.V)) - np.min(np.real(self.V))))
+        return 2 * np.pi / (safety * (np.max(np.real(self.V)) - np.min(np.real(self.V))))
 
 
 class Grid1d(Grid):
@@ -141,13 +138,13 @@ class Grid1d(Grid):
         """
 
         super().__init__(1, potential, psi0, absorber)
-        if(np.ndim(grid_samples) > 0):
+        if np.ndim(grid_samples) > 0:
             grid_samples = grid_samples[0]
         self.grid_samples = int(grid_samples)
         self.x_extent = float(size[1]) - float(size[0])
         self.x_vals = np.linspace(size[0], size[1], self.grid_samples, endpoint=False)
-        self.dx = self.x_extent/self.grid_samples
-        self.k_vals = 2*np.pi*np.fft.fftfreq(self.grid_samples, self.dx)
+        self.dx = self.x_extent / self.grid_samples
+        self.k_vals = 2 * np.pi * np.fft.fftfreq(self.grid_samples, self.dx)
 
         self.dV = self.dx
         self.k_squared = self.k_vals**2
@@ -159,24 +156,24 @@ class Grid1d(Grid):
         periodic.
         """
 
-        psi_val = (self._psi[0] + self._psi[-1])/2.0
+        psi_val = (self._psi[0] + self._psi[-1]) / 2.0
         self._psi[0] = psi_val
         self._psi[-1] = psi_val
 
     def expectation_x(self):
         r"""Position expectation value $\langle x\rangle$."""
-        return np.sum(self.x_vals*self.density)/np.sum(self.density)
+        return np.sum(self.x_vals * self.density) / np.sum(self.density)
 
     def expectation_p(self):
         r"""Momentum expectation value $\langle p\rangle$, computed in momentum
         space."""
         Psi = np.fft.fft(self._psi)
-        return np.sum(self.k_vals*np.abs(Psi)**2)/np.sum(np.abs(Psi)**2)
+        return np.sum(self.k_vals * np.abs(Psi) ** 2) / np.sum(np.abs(Psi) ** 2)
 
     def width_x(self):
         r"""Position uncertainty $\Delta x$."""
         x_mean = self.expectation_x()
-        return np.sqrt(np.sum((self.x_vals - x_mean)**2*self.density)/np.sum(self.density))
+        return np.sqrt(np.sum((self.x_vals - x_mean) ** 2 * self.density) / np.sum(self.density))
 
 
 class Grid2d(Grid):
@@ -206,20 +203,20 @@ class Grid2d(Grid):
         """
 
         super().__init__(2, potential, psi0, absorber)
-        if(np.ndim(grid_samples) == 0):
+        if np.ndim(grid_samples) == 0:
             grid_samples = (grid_samples, grid_samples)
         self.grid_samples = (int(grid_samples[0]), int(grid_samples[1]))
         (x0, x1), (y0, y1) = size
         self.x_extent, self.y_extent = float(x1) - float(x0), float(y1) - float(y0)
         self.x_vals = np.linspace(x0, x1, self.grid_samples[0], endpoint=False)
         self.y_vals = np.linspace(y0, y1, self.grid_samples[1], endpoint=False)
-        self.dx = self.x_extent/self.grid_samples[0]
-        self.dy = self.y_extent/self.grid_samples[1]
-        self.dV = self.dx*self.dy
+        self.dx = self.x_extent / self.grid_samples[0]
+        self.dy = self.y_extent / self.grid_samples[1]
+        self.dV = self.dx * self.dy
         self.X, self.Y = np.meshgrid(self.x_vals, self.y_vals, indexing="ij")
-        self.kx_vals = 2*np.pi*np.fft.fftfreq(self.grid_samples[0], self.dx)
-        self.ky_vals = 2*np.pi*np.fft.fftfreq(self.grid_samples[1], self.dy)
-        self.k_squared = self.kx_vals[:, None]**2 + self.ky_vals[None, :]**2
+        self.kx_vals = 2 * np.pi * np.fft.fftfreq(self.grid_samples[0], self.dx)
+        self.ky_vals = 2 * np.pi * np.fft.fftfreq(self.grid_samples[1], self.dy)
+        self.k_squared = self.kx_vals[:, None] ** 2 + self.ky_vals[None, :] ** 2
         self._r = (self.X, self.Y)
         self._initialize()
 
@@ -231,10 +228,10 @@ class Grid2d(Grid):
     def expectation_r(self):
         r"""Position expectation value $(\langle x\rangle, \langle y\rangle)$."""
         rho = self.density
-        return np.sum(self.X*rho)/np.sum(rho), np.sum(self.Y*rho)/np.sum(rho)
+        return np.sum(self.X * rho) / np.sum(rho), np.sum(self.Y * rho) / np.sum(rho)
 
     def expectation_p(self):
         r"""Momentum expectation value $(\langle p_x\rangle, \langle p_y\rangle)$."""
-        rho_k = np.abs(np.fft.fft2(self._psi))**2
+        rho_k = np.abs(np.fft.fft2(self._psi)) ** 2
         norm = np.sum(rho_k)
-        return np.sum(self.kx_vals[:, None]*rho_k)/norm, np.sum(self.ky_vals[None, :]*rho_k)/norm
+        return np.sum(self.kx_vals[:, None] * rho_k) / norm, np.sum(self.ky_vals[None, :] * rho_k) / norm

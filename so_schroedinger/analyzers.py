@@ -1,13 +1,10 @@
-#-*- coding:utf-8 -*-
+"""Analyzing tools for wavepacket dynamics."""
 
-"""Analyzing tools for wavepacket dynamics.
-"""
-
+import matplotlib.pyplot as plt
 import numpy as np
 from numpy.fft import fft, fftfreq, fftshift
 from scipy.integrate import simpson
-from scipy.signal.windows import hamming, hann, blackman
-import matplotlib.pyplot as plt
+from scipy.signal.windows import blackman, hamming, hann
 
 # FIXME: so far, all analyzers store their psi data individually.
 # this eats a lot of memory.
@@ -45,10 +42,10 @@ class Analyzer:
         self._grid_samples = np.shape(V0)  # dimension(s) of grid array
         self._x_extent = np.zeros(len(self._grid_samples))
         self._dx = np.zeros(len(self._grid_samples))
-        self._is1d = (np.size(self._grid_samples) == 1)
+        self._is1d = np.size(self._grid_samples) == 1
 
         # compute grid spacing and extent
-        if(self._is1d):
+        if self._is1d:
             self._x_extent[0] = x_vals[-1] - x_vals[0]
             self._dx[0] = x_vals[1] - x_vals[0]
         else:
@@ -88,27 +85,26 @@ class Analyzer:
         raise NotImplementedError("Do not call this method of the *base* class.")
 
 
-#-----------------------------------------------------------------------
+# -----------------------------------------------------------------------
 # derived classes:
 class AutoCorrelation(Analyzer):
-    """Compute autocorrelation data and extract the spectrum.
-    """
+    """Compute autocorrelation data and extract the spectrum."""
 
     def process_data(self):
-        """Compute overlap data computed from the wavefunctions given.
-        """
+        """Compute overlap data computed from the wavefunctions given."""
 
         self._overlap = []
         for psi in self._psi_samples:
-            if(self._is1d):
-                overlap = simpson(self._psi0*np.conj(psi), dx=self._dx[0])  # simpson() works with complex-valued samples
+            if self._is1d:
+                overlap = simpson(
+                    self._psi0 * np.conj(psi), dx=self._dx[0]
+                )  # simpson() works with complex-valued samples
                 self._overlap.append(overlap)
             else:
                 raise NotImplementedError("2d overlap integrals are not implemented yet!")  # TODO: implement
 
     def plot_corr(self):
-        """Plot correlation function $C(t)$.
-        """
+        """Plot correlation function $C(t)$."""
 
         plt.plot(self._t_samples, np.abs(self._overlap), c="b", lw=2, ls="-")
         plt.title(r"$\vert C(t)\vert$")
@@ -129,62 +125,61 @@ class AutoCorrelation(Analyzer):
 
         # TODO: what about complex frequencies?
 
-        if(window=="hann"):
+        if window == "hann":
             win_func = hann
-        elif(window=="hamming"):
+        elif window == "hamming":
             win_func = hamming
-        elif(window=="blackman"):
+        elif window == "blackman":
             win_func = blackman
         else:
             raise ValueError("Illegal window option in plot_spectrum()!")
 
         dt = self._t_samples[1] - self._t_samples[0]  # assume equal dt for all steps
         n_time = len(self._t_samples)
-        freqs = 2*np.pi*fftshift(fftfreq(n_time, dt))
-        windowed_signal = np.asarray(self._overlap)*win_func(n_time)  # windowing -> make function periodic on time interval
-        c_omega = np.abs(fftshift(fft(windowed_signal)))**2
+        freqs = 2 * np.pi * fftshift(fftfreq(n_time, dt))
+        windowed_signal = np.asarray(self._overlap) * win_func(
+            n_time
+        )  # windowing -> make function periodic on time interval
+        c_omega = np.abs(fftshift(fft(windowed_signal))) ** 2
         plt.plot(freqs, c_omega, c="b", lw=2, ls="-")
         plt.title(r"$\vert\tilde{C}(\omega)\vert^2$")
         plt.show()
 
 
 class Observables(Analyzer):
-    """Compute observables from data.
-    """
+    """Compute observables from data."""
 
     def process_data(self, pos_exp=True, mom_exp=True):
-        """Compute position and momentum expectation values.
-        """
+        """Compute position and momentum expectation values."""
 
-         # TODO: fix momenta. something is wrong here (units?)
+        # TODO: fix momenta. something is wrong here (units?)
 
-        self._pos_exp = []; self._mom_exp = []
+        self._pos_exp = []
+        self._mom_exp = []
 
-        if(mom_exp and self._is1d): k_vals = 2*np.pi*fftshift(fftfreq(self._grid_samples[0],
-                                                            self._dx[0]))  # *2pi means 1/lambda --> k = p
+        if mom_exp and self._is1d:
+            k_vals = 2 * np.pi * fftshift(fftfreq(self._grid_samples[0], self._dx[0]))  # *2pi means 1/lambda --> k = p
 
         for psi in self._psi_samples:
-            if(self._is1d):
-                if(pos_exp):
-                    x_exp = simpson(self._x_grid*np.abs(psi)**2, dx=self._dx[0])
+            if self._is1d:
+                if pos_exp:
+                    x_exp = simpson(self._x_grid * np.abs(psi) ** 2, dx=self._dx[0])
                     self._pos_exp.append(x_exp)
-                if(mom_exp):  # compute in momentum space (where the momentum operator is just a multiplication)
-                    Psi = fftshift(fft(psi))/np.sqrt(self._grid_samples[0])
+                if mom_exp:  # compute in momentum space (where the momentum operator is just a multiplication)
+                    Psi = fftshift(fft(psi)) / np.sqrt(self._grid_samples[0])
                     # ensure correct *physical* norm of k-space wave function:
-                    Psi_norm = simpson(abs(Psi)**2, x=k_vals)
+                    Psi_norm = simpson(abs(Psi) ** 2, x=k_vals)
                     Psi /= np.sqrt(Psi_norm)
-                    #print("|psi| = %s, |Psi| = %s"%(simpson(abs(psi)**2, x=self._x_grid), simpson(abs(Psi)**2, x=p_vals)))
-                    p_exp = simpson(k_vals*np.abs(Psi)**2, dx=abs(k_vals[1]-k_vals[0]))
+                    p_exp = simpson(k_vals * np.abs(Psi) ** 2, dx=abs(k_vals[1] - k_vals[0]))
                     self._mom_exp.append(p_exp)
                     # TODO: maybe we can leave out the fftshift() call?
             else:
                 raise NotImplementedError("2d expectation values are not implemented yet!")  # TODO: implement
 
     def plot_data(self):
-        """Plot available data.
-        """
+        """Plot available data."""
 
-        if(len(self._pos_exp) > 0 and len(self._mom_exp) > 0):
+        if len(self._pos_exp) > 0 and len(self._mom_exp) > 0:
             fig = plt.figure()
             ax1 = fig.add_subplot(111)
             ax2 = ax1.twinx()
@@ -194,19 +189,18 @@ class Observables(Analyzer):
             ax1.set_ylabel(r"$\langle x\rangle$", color="b")
             ax2.set_ylabel(r"$\langle p\rangle$", color="r")
             for tl in ax1.get_yticklabels():
-                tl.set_color('b')
+                tl.set_color("b")
             for tl in ax2.get_yticklabels():
-                tl.set_color('r')
+                tl.set_color("r")
 
-
-        if(len(self._pos_exp) > 0 and len(self._mom_exp) == 0):  # plot only position
+        if len(self._pos_exp) > 0 and len(self._mom_exp) == 0:  # plot only position
             fig = plt.figure()
             ax1 = fig.add_subplot(111)
             ax1.plot(self._t_samples, self._pos_exp, ls="-", c="b", lw=2)
             ax1.set_xlabel("$t$")
             ax1.set_ylabel(r"$\langle x\rangle$")
 
-        if(len(self._pos_exp) == 0 and len(self._mom_exp) > 0):  # plot only momentum
+        if len(self._pos_exp) == 0 and len(self._mom_exp) > 0:  # plot only momentum
             fig = plt.figure()
             ax1 = fig.add_subplot(111)
             ax1.plot(self._t_samples, self._mom_exp, ls="--", c="r", lw=2)
@@ -225,8 +219,7 @@ class EigenfunctionBuilder(Analyzer):
     """
 
     def process_data(self):
-        """Nothing to do here. Use compute_eigenfunction() instead.
-        """
+        """Nothing to do here. Use compute_eigenfunction() instead."""
 
         pass
 
@@ -248,16 +241,16 @@ class EigenfunctionBuilder(Analyzer):
             Eigenfunction estimate for the energy given.
         """
 
-        if(window == "hann"):
+        if window == "hann":
             win_func = hann
-        elif(window == "hamming"):
+        elif window == "hamming":
             win_func = hamming
-        elif(window == "blackman"):
+        elif window == "blackman":
             win_func = blackman
         else:
             raise ValueError("Illegal window option in process_data()!")
 
-        if(not self._is1d):
+        if not self._is1d:
             raise NotImplementedError("Two dimensional computations are not implemented yet!")  # TODO: implement 2d
 
         integrands = np.zeros([len(self._psi_samples[0]), len(self._t_samples)], dtype=complex)
@@ -267,7 +260,7 @@ class EigenfunctionBuilder(Analyzer):
         psi_samples = np.asarray(self._psi_samples)
 
         for i in range(len(self._t_samples)):  # build exp(i E_n t_n) psi_{x_n, t_n} array
-            integrands[:, i] = np.exp(1j*E*t_samples[i])*psi_samples[i]*window_array[i]
+            integrands[:, i] = np.exp(1j * E * t_samples[i]) * psi_samples[i] * window_array[i]
 
         return simpson(integrands, dx=dt)  # simpson() integrates the last axis, here: the *time* axis
 
@@ -282,9 +275,18 @@ class EigenfunctionBuilder(Analyzer):
 
         psi_eigen = self.compute_eigenfunction(E)
 
-        plt.plot(self._x_grid, np.abs(psi_eigen), lw=2, c="b", ls="-", label=r"$\vert\psi_E(x)\vert$ for $E=%s$"%E)
-        plt.plot(self._x_grid, np.real(psi_eigen), lw=1.5, c="red", ls="--", label=r"$\mathrm{Re}\,\psi_E(x)$ for $E=%s$"%E)
-        plt.plot(self._x_grid, np.imag(psi_eigen), lw=1.5, c="gray", ls="--", label=r"$\mathrm{Im}\,\psi_E(x)$ for $E=%s$"%E)
+        plt.plot(self._x_grid, np.abs(psi_eigen), lw=2, c="b", ls="-", label=rf"$\vert\psi_E(x)\vert$ for $E={E}$")
+        plt.plot(
+            self._x_grid, np.real(psi_eigen), lw=1.5, c="red", ls="--", label=rf"$\mathrm{{Re}}\,\psi_E(x)$ for $E={E}$"
+        )
+        plt.plot(
+            self._x_grid,
+            np.imag(psi_eigen),
+            lw=1.5,
+            c="gray",
+            ls="--",
+            label=rf"$\mathrm{{Im}}\,\psi_E(x)$ for $E={E}$",
+        )
         plt.legend()
         plt.show()
 
@@ -318,16 +320,16 @@ class EigenstateFilter:
         """Add the wavefunction at time t; dt is the time step between calls."""
 
         t = abs(t)
-        if(t > self.t_max):
+        if t > self.t_max:
             return
-        if(self._phi is None):
+        if self._phi is None:
             self._phi = np.zeros((len(self.energies),) + np.shape(psi), dtype=complex)
-        w = 0.5*(1 + np.cos(np.pi*t/self.t_max))*abs(dt)  # half of a Hann window
+        w = 0.5 * (1 + np.cos(np.pi * t / self.t_max)) * abs(dt)  # half of a Hann window
         for i, E in enumerate(self.energies):
-            self._phi[i] += w*np.exp(1j*E*t)*psi
+            self._phi[i] += w * np.exp(1j * E * t) * psi
 
     def eigenstates(self, dV=1.0):
         """Return the filtered states, normalized for the volume element dV."""
 
-        norms = np.sqrt(np.sum(np.abs(self._phi)**2, axis=tuple(range(1, self._phi.ndim)))*dV)
-        return self._phi/norms.reshape((-1,) + (1,)*(self._phi.ndim - 1))
+        norms = np.sqrt(np.sum(np.abs(self._phi) ** 2, axis=tuple(range(1, self._phi.ndim))) * dV)
+        return self._phi / norms.reshape((-1,) + (1,) * (self._phi.ndim - 1))

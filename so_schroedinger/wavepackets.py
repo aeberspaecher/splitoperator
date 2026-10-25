@@ -28,8 +28,7 @@ class WavePacket:
 
 
 class WavepacketSuperposition(WavePacket):
-    """Create a superposition of several wave packets.
-    """
+    """Create a superposition of several wave packets."""
 
     def __init__(self, psis):
         """Create a superposition of several wavepackets.
@@ -68,7 +67,7 @@ class Gaussian1d(WavePacket):
         self.x0 = float(x0)
         self.sigma = float(sigma)
         self.p0 = float(p0)
-        log.info("Created a Gaussian wavepacket with kinetic energy of T = p_0^2/2 = %s", self.p0**2/2)
+        log.info("Created a Gaussian wavepacket with kinetic energy of T = p_0^2/2 = %s", self.p0**2 / 2)
 
     @property
     def sigma(self):
@@ -78,16 +77,15 @@ class Gaussian1d(WavePacket):
     @sigma.setter
     def sigma(self, value):
         self._sigma = float(value)
-        self.N = np.sqrt(1.0/(np.sqrt(np.pi)*self._sigma))
+        self.N = np.sqrt(1.0 / (np.sqrt(np.pi) * self._sigma))
 
     def psi(self, x):
         x = np.asarray(x)
-        return self.N*np.exp(-(x - self.x0)**2/(2.0*self._sigma**2) + 1j*self.p0*(x - self.x0))
+        return self.N * np.exp(-((x - self.x0) ** 2) / (2.0 * self._sigma**2) + 1j * self.p0 * (x - self.x0))
 
 
 class Gaussian1dEnergy(Gaussian1d):
-    """A Gaussian wavepacket in one dimension created from energy parameters.
-    """
+    """A Gaussian wavepacket in one dimension created from energy parameters."""
 
     def __init__(self, x0, E0, delta_E, direction=+1):
         """Create a Gaussian wavepacket from energy parameters.
@@ -116,15 +114,14 @@ class Gaussian1dEnergy(Gaussian1d):
         """
 
         E0, delta_E = float(E0), float(delta_E)
-        sigma = 2*np.sqrt(2*np.log(2)*E0)/delta_E
-        p0 = np.sign(direction)*np.sqrt(2*E0)
+        sigma = 2 * np.sqrt(2 * np.log(2) * E0) / delta_E
+        p0 = np.sign(direction) * np.sqrt(2 * E0)
         super().__init__(x0, sigma, p0)
         log.info("Created a Gaussian wavepacket with energy E = %s, FWHM delta_E = %s", E0, delta_E)
 
 
 class CoherentState(Gaussian1d):
-    """A Gaussian wavepacket that does not spread in harmonic potentials.
-    """
+    """A Gaussian wavepacket that does not spread in harmonic potentials."""
 
     def __init__(self, x0, omega, p0):
         r"""Create a coherent state for an oscillator of frequency $\omega$. The
@@ -140,13 +137,12 @@ class CoherentState(Gaussian1d):
             Momentum of corresponding classical particle.
         """
 
-        super().__init__(x0, np.sqrt(1/float(omega)), p0)
+        super().__init__(x0, np.sqrt(1 / float(omega)), p0)
         log.info("Created a coherent state for omega = %s", float(omega))
 
 
 class Gaussian2d(WavePacket):
-    """A Gaussian wavepacket in two dimensions, evaluated as ``psi((X, Y))``.
-    """
+    """A Gaussian wavepacket in two dimensions, evaluated as ``psi((X, Y))``."""
 
     def __init__(self, x0, y0, sigma_x, sigma_y=None, px=0.0, py=0.0):
         r"""Create a 2d Gaussian wavepacket, the product of two 1d Gaussians
@@ -167,4 +163,4 @@ class Gaussian2d(WavePacket):
 
     def psi(self, r):
         x, y = r
-        return self.gx.psi(x)*self.gy.psi(y)
+        return self.gx.psi(x) * self.gy.psi(y)

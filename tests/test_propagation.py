@@ -23,11 +23,11 @@ def test_free_gaussian_spreads_analytically():
     prop = so.SplitOperator()
     dt, n = 0.01, 400
     prop.propagate(grid, dt, n)
-    t = dt*n
+    t = dt * n
     assert grid.t == pytest.approx(t)
-    assert grid.expectation_x() == pytest.approx(x0 + p0*t, abs=1e-6)
+    assert grid.expectation_x() == pytest.approx(x0 + p0 * t, abs=1e-6)
     assert grid.expectation_p() == pytest.approx(p0, abs=1e-6)
-    assert grid.width_x() == pytest.approx(sigma/np.sqrt(2)*np.sqrt(1 + t**2/sigma**4), rel=1e-6)
+    assert grid.width_x() == pytest.approx(sigma / np.sqrt(2) * np.sqrt(1 + t**2 / sigma**4), rel=1e-6)
 
 
 def test_coherent_state_oscillates_without_spreading():
@@ -37,9 +37,9 @@ def test_coherent_state_oscillates_without_spreading():
     prop = so.SplitOperator()
     dt, n = 0.005, 1000
     prop.propagate(grid, dt, n)
-    t = dt*n
-    assert grid.expectation_x() == pytest.approx(x0*np.cos(omega*t) + p0/omega*np.sin(omega*t), abs=1e-4)
-    assert grid.width_x() == pytest.approx(psi0.sigma/np.sqrt(2), rel=1e-4)
+    t = dt * n
+    assert grid.expectation_x() == pytest.approx(x0 * np.cos(omega * t) + p0 / omega * np.sin(omega * t), abs=1e-4)
+    assert grid.width_x() == pytest.approx(psi0.sigma / np.sqrt(2), rel=1e-4)
 
 
 def test_imaginary_time_finds_oscillator_ground_state():
@@ -47,7 +47,7 @@ def test_imaginary_time_finds_oscillator_ground_state():
     grid = make_grid(so.HarmOscPot(omega), so.Gaussian1d(1.0, 0.5, 0.0), size=(-15.0, 15.0), samples=2**9)
     prop = so.SplitOperator(renormalize_every=1)
     prop.propagate(grid, -0.005j, 2000)
-    assert prop.ground_state_energy == pytest.approx(omega/2, rel=1e-4)
+    assert prop.ground_state_energy == pytest.approx(omega / 2, rel=1e-4)
     assert grid.expectation_x() == pytest.approx(0.0, abs=1e-6)
 
 

@@ -19,7 +19,7 @@ grid = so.Grid1d(size, 2**11, barrier, psi0, absorber=absorber)
 
 anim = animate1d(grid, so.SplitOperator(), dt=0.02, n_frames=150, steps_per_frame=10, close_figure=False)
 
-if(len(sys.argv) > 1):
+if len(sys.argv) > 1:
     anim.save(sys.argv[1], fps=25)
 else:
     plt.show()
