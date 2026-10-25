@@ -35,6 +35,20 @@ prop.propagate(grid, dt=0.01, nSteps=1000)
 print(grid.t, grid.psiNorm, grid.expectationX())
 ```
 
+## Animations
+
+```python
+from IPython.display import HTML
+
+anim = so.animate1d(grid, so.SplitOperator(), dt=0.02, nFrames=150, stepsPerFrame=10)
+HTML(anim.to_jshtml())        # in a Jupyter notebook
+anim.save("barrier.gif")      # or .mp4 (needs ffmpeg)
+```
+
+The propagation is done before the animation is drawn, so an animation can be
+rendered or saved several times. See `examples/animate_barrier.py` for a
+standalone script.
+
 ## Contents
 
 - `so_schroedinger.grid`: periodic 1d grid holding ψ and V
@@ -44,6 +58,7 @@ print(grid.t, grid.psiNorm, grid.expectationX())
 - `so_schroedinger.timeprop`: the split operator propagator
 - `so_schroedinger.analyzers`: autocorrelation spectra, expectation values,
   eigenfunctions from time series
+- `so_schroedinger.animation`: Matplotlib animations of the propagation
 
 ## Tests
 
