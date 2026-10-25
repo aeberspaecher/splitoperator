@@ -73,6 +73,20 @@ anim = so.animate2d(grid, so.SplitOperator(), dt=0.004, n_frames=50, steps_per_f
 `RandomPotential2d` (Gaussian random field with a given correlation
 function) and `BoundaryAbsorber2d`.
 
+## Eigenstates
+
+Imaginary time evolution relaxes any state to the ground state; projecting
+out the states found before gives the excited ones:
+
+```python
+grid = so.Grid1d((-15.0, 15.0), 2**9, so.HarmOscPot(1.0), psi0)
+E0 = so.ground_state(grid)  # grid.psi is now the ground state
+energies, states = so.lowest_eigenstates(grid, 5)  # 0.5, 1.5, 2.5, ...
+```
+
+`grid.energy()` gives ⟨H⟩, split into `grid.expectation_kinetic()` and
+`grid.expectation_potential()`.
+
 ## Analyzers
 
 `so_schroedinger.analyzers` collects data during the propagation. Each
@@ -91,7 +105,7 @@ obs.t, obs.norm, obs.position, obs.momentum, obs.width  # arrays
 E, spectrum = corr.spectrum()  # peaks at the eigenenergies
 ```
 
-- `Observables`: norm, ⟨x⟩, ⟨p⟩ and Δx versus time
+- `Observables`: norm, ⟨x⟩, ⟨p⟩, Δx and ⟨H⟩ versus time
 - `AutoCorrelation`: C(t) = ⟨ψ₀|ψ(t)⟩ and the spectrum from it
 - `EigenstateFilter`: eigenstates for given energies, filtered on the fly
 - `EigenfunctionBuilder`: stores ψ(t) to build eigenstates for energies
@@ -123,8 +137,8 @@ The `notebooks/` folder contains illustrated examples:
 2. `02_tunneling.ipynb`: tunneling through a rectangular barrier, transmission
    versus energy compared with the plane wave formula
 3. `03_harmonic_oscillator.ipynb`: coherent states, ground state from
-   imaginary time evolution, spectrum and eigenstates from the
-   autocorrelation function
+   imaginary time evolution (ground and excited states), spectrum and
+   eigenstates from the autocorrelation function
 4. `04_branched_flow.ipynb`: a wave in a weak, smooth random potential
    splits into branches; quantum density compared with classical rays
 5. `05_stadium_billiard.ipynb`: chaotic dynamics in the Bunimovich stadium
@@ -140,6 +154,7 @@ Install the extras with `pip install ".[notebooks]"` and start
   potentials with a prescribed correlation function, absorbing boundaries
 - `so_schroedinger.wavepackets`: Gaussian wavepackets (1d, 2d) and coherent states
 - `so_schroedinger.timeprop`: the split operator propagator
+- `so_schroedinger.eigenstates`: ground and excited states from imaginary time
 - `so_schroedinger.analyzers`: expectation values, autocorrelation spectra,
   eigenstates, time integrated density and flux
 - `so_schroedinger.animation`: Matplotlib animations of the propagation

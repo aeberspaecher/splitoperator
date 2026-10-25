@@ -63,6 +63,22 @@ class Grid:
         r"""Probability density $\vert\psi\vert^2$."""
         return np.abs(self._psi) ** 2
 
+    def expectation_kinetic(self):
+        r"""Kinetic energy $\langle T\rangle = \langle k^2/2\rangle$, computed in
+        momentum space."""
+        rho_k = np.abs(np.fft.fftn(self._psi)) ** 2
+        return np.sum(self.k_squared / 2.0 * rho_k) / np.sum(rho_k)
+
+    def expectation_potential(self):
+        r"""Potential energy $\langle V\rangle$; absorbers (the imaginary part of
+        $V$) do not contribute."""
+        rho = self.density
+        return np.sum(np.real(self._pot) * rho) / np.sum(rho)
+
+    def energy(self):
+        r"""Energy $\langle H\rangle = \langle T\rangle + \langle V\rangle$."""
+        return self.expectation_kinetic() + self.expectation_potential()
+
     def update_potential(self, t):
         """Update potential for time $t$."""
 
