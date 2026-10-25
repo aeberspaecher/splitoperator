@@ -4,7 +4,7 @@ equation.
 All quantities are in (Hartree) atomic units, hbar = m = 1.
 """
 
-from . import analyzers
+from . import analyzers, plotting
 from .animation import animate1d, animate2d
 from .eigenstates import *
 from .grid import *
