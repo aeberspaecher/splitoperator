@@ -8,6 +8,12 @@
 - Absorbers: `ManolopoulosAbsorber1d` (transmission-free), `PowerAbsorber1d`
   and `MaskAbsorber1d` (cos^(1/8) mask), and a notebook that measures
   reflection and transmission of the absorbers versus energy.
+- `LimaconPotential2d`: billiard or dielectric cavity shaped like Pascal's
+  limaçon, with `LimaconPotential2d.dielectric(R, eps, n, E)` for the optical
+  analogy.
+- `FarField` analyzer: the angular distribution of the time integrated
+  density on a ring, i.e. the emission pattern of a cavity.
+  `IntegratedDensity(mask=...)` integrates only in a region.
 
 - New notebooks: double slit in 2d; double well with Rabi oscillations and
   coherent destruction of tunneling; dynamical localization in the kicked rotor.

@@ -10,8 +10,9 @@ directly as ``callback`` to ``SplitOperator.propagate()`` or in the
 >>> prop.propagate(grid, dt, n_steps, callback=obs, every=10)
 >>> obs.t, obs.position
 
-All analyzers except ``Wigner`` and ``Husimi`` (1d only) work on 1d and 2d grids. Time integrals use the trapezoidal
-rule on the sample times, which need not be equidistant (except for
+All analyzers except ``Wigner``, ``Husimi`` (1d only) and ``FarField`` (2d
+only) work on 1d and 2d grids. Time integrals use the trapezoidal rule on the
+sample times, which need not be equidistant (except for
 ``AutoCorrelation.spectrum()``). Analyzers copy what they need, so the grid
 may change after each call. None of them plots or prints anything.
 """
@@ -30,6 +31,7 @@ __all__ = [
     "EigenstateFilter",
     "EigenfunctionBuilder",
     "IntegratedDensity",
+    "FarField",
     "Flux",
     "Wigner",
     "Husimi",
@@ -327,16 +329,25 @@ class IntegratedDensity(Analyzer):
     r"""Time integrated density $\int |\psi(\mathbf{r}, t)|^2\,\mathrm{d}t$.
 
     Shows where a wave has been, e.g. the branches of branched flow.
+
+    Parameters
+    ----------
+    mask : boolean array, optional
+        Integrate only at the grid points where ``mask`` is True, which
+        saves memory and time if only a region matters; ``density`` then
+        holds the values at these points, in the order of ``grid.psi[mask]``.
     """
 
-    def __init__(self):
+    def __init__(self, mask=None):
+        self.mask = None if mask is None else np.asarray(mask, dtype=bool)
         self._acc = None
         self._trapezoid = _Trapezoid()
 
     def add_data(self, grid):
+        rho = grid.density if self.mask is None else np.abs(grid.psi[self.mask]) ** 2
         if self._acc is None:
-            self._acc = np.zeros(np.shape(grid.psi))
-        done = self._trapezoid.push(grid.t, grid.density)
+            self._acc = np.zeros(np.shape(rho))
+        done = self._trapezoid.push(grid.t, rho)
         if done is not None:
             self._acc += done[2] * done[1]
 
@@ -347,6 +358,67 @@ class IntegratedDensity(Analyzer):
             raise ValueError("no data has been added yet")
         last = self._trapezoid.last()
         return self._acc if last is None else self._acc + last[2] * last[1]
+
+
+class FarField(Analyzer):
+    r"""Angular distribution of the emission from a cavity or scatterer:
+    the time integrated density on a ring around ``center``, averaged over
+    angular bins, $I(\varphi) \propto \int |\psi(r, \varphi, t)|^2\,\mathrm{d}t$
+    for $|r - r_0| < \delta r/2$. 2d only.
+
+    Far from the source, an outgoing wave at energy $E = k^2/2$ carries the
+    radial flux $k |\psi|^2$, so $I(\varphi)$ is the emitted probability per
+    angle, the far field. The ring should lie well outside the source (a few
+    wavelengths at least) and inside the absorber, and the propagation
+    should last until the emission has passed the ring. Waves reflected by
+    the absorber are counted as well.
+
+    Parameters
+    ----------
+    radius : float
+        Radius $r_0$ of the ring.
+    width : float
+        Width $\delta r$ of the ring; at least a few grid spacings, so that
+        every angular bin holds grid points.
+    center : tuple of float, optional
+        Center of the ring.
+    n_angles : int, optional
+        Number of angular bins on $[-\pi, \pi)$.
+    """
+
+    def __init__(self, radius, width, center=(0.0, 0.0), n_angles=180):
+        self.radius, self.width = float(radius), float(width)
+        self.center = (float(center[0]), float(center[1]))
+        self.n_angles = int(n_angles)
+        self._integrated = None
+        self._bin = None
+        self._count = None
+
+    def add_data(self, grid):
+        if grid.dim != 2:
+            raise ValueError(f"{type(self).__name__} works on 2d grids only")
+        if self._integrated is None:
+            x, y = grid.X - self.center[0], grid.Y - self.center[1]
+            mask = np.abs(np.hypot(x, y) - self.radius) < self.width / 2
+            phi = np.arctan2(y[mask], x[mask])
+            self._bin = np.minimum(((phi + np.pi) / (2 * np.pi) * self.n_angles).astype(int), self.n_angles - 1)
+            self._count = np.bincount(self._bin, minlength=self.n_angles)
+            if np.any(self._count == 0):
+                raise ValueError("some angular bins hold no grid points; use a wider ring or fewer angles")
+            self._integrated = IntegratedDensity(mask)
+        self._integrated.add_data(grid)
+
+    @property
+    def angles(self):
+        r"""Centers of the angular bins, in $[-\pi, \pi)$."""
+        return -np.pi + (np.arange(self.n_angles) + 0.5) * 2 * np.pi / self.n_angles
+
+    @property
+    def intensity(self):
+        r"""$I(\varphi)$: the integrated density averaged over each bin."""
+        if self._integrated is None:
+            raise ValueError("no data has been added yet")
+        return np.bincount(self._bin, self._integrated.density, minlength=self.n_angles) / self._count
 
 
 class Flux(Analyzer):

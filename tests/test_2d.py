@@ -51,6 +51,25 @@ def test_stadium_signed_distance():
     assert np.real(V[1]) == pytest.approx(10.0)
 
 
+def test_limacon_boundary_and_values():
+    pot = so.LimaconPotential2d(R=1.0, eps=0.43, V_in=-5.0, V_out=1.0, w=0.001, x0=0.5)
+    phi = np.linspace(-np.pi, np.pi, 50)
+    x, y = pot.boundary(phi)
+    assert np.hypot(x - 0.5, y) == pytest.approx(1 + 0.43 * np.cos(phi))
+    assert pot.signed_distance((x, y)) == pytest.approx(np.zeros(50), abs=1e-12)
+    # on the symmetry axis, near the boundary, the radial distance is the exact distance
+    r = (np.array([0.5 + 1.33, 2.43, 0.5 - 0.57 - 0.2]), np.zeros(3))
+    assert pot.signed_distance(r) == pytest.approx([-0.1, 0.5, 0.2])
+    assert np.real(pot.V(r, 0.0)) == pytest.approx([-5.0, 1.0, 1.0])
+
+
+def test_limacon_circle_and_dielectric():
+    pot = so.LimaconPotential2d.dielectric(R=2.0, eps=0.0, n=1.5, E=4.0)
+    r = (np.array([0.0, 1.0, 3.0, 0.0]), np.array([0.0, 1.0, 0.0, -1.8]))
+    assert pot.signed_distance(r) == pytest.approx([-2.0, np.sqrt(2) - 2, 1.0, -0.2])
+    assert np.real(pot.V(r, 0.0)) == pytest.approx([-5.0, -5.0, 0.0, -5.0], abs=1e-6)
+
+
 def test_random_potential2d():
     x, y = np.linspace(0, 64, 256, endpoint=False), np.linspace(0, 32, 128, endpoint=False)
     corr = lambda dx, dy: np.exp(-(dx**2 + dy**2) / 2)

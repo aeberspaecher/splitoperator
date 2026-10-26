@@ -6,6 +6,7 @@ from so_schroedinger.analyzers import (
     AutoCorrelation,
     EigenfunctionBuilder,
     EigenstateFilter,
+    FarField,
     Flux,
     IntegratedDensity,
     Observables,
@@ -132,6 +133,52 @@ def test_integrated_density():
     so.SplitOperator().propagate(grid, 0.01, 300, callback=acc, every=3)
     assert np.sum(acc.density) * grid.dx == pytest.approx(3.0)
     assert np.sum(acc.density) * grid.dx == pytest.approx(3.0)  # reading does not change the result
+
+
+def test_integrated_density_mask():
+    grid = so.Grid2d(((-8, 8), (-8, 8)), 64, so.ConstantPotential(0.0), so.Gaussian2d(-1.0, 0.0, 1.0, px=2.0))
+    mask = grid.X > 0.0
+    full, part = IntegratedDensity(), IntegratedDensity(mask)
+    full(grid)
+    part(grid)
+    so.SplitOperator().propagate(grid, 0.01, 100, callback=[full, part], every=5)
+    assert part.density.shape == (np.count_nonzero(mask),)
+    assert part.density == pytest.approx(full.density[mask])
+
+
+def far_field_of(psi0, n_angles=36):
+    size = ((-16.0, 16.0), (-16.0, 16.0))
+    absorber = so.BoundaryAbsorber2d(size, width=4.0, strength=5.0)
+    grid = so.Grid2d(size, 128, so.ConstantPotential(0.0), psi0, absorber=absorber)
+    ff = FarField(radius=8.0, width=1.0, n_angles=n_angles)
+    ff(grid)
+    so.SplitOperator().propagate(grid, 0.02, 400, callback=ff, every=2)
+    return ff
+
+
+def test_far_field_isotropic():
+    ff = far_field_of(so.Gaussian2d(0.0, 0.0, 0.5))
+    assert ff.angles.shape == ff.intensity.shape == (36,)
+    assert ff.angles[0] == pytest.approx(-np.pi + np.pi / 36)
+    assert ff.intensity == pytest.approx(np.full(36, np.mean(ff.intensity)), rel=0.05)
+
+
+def test_far_field_direction():
+    angle = 2.0
+    psi0 = so.Gaussian2d(0.0, 0.0, 1.0, px=3.0 * np.cos(angle), py=3.0 * np.sin(angle))
+    ff = far_field_of(psi0)
+    assert ff.angles[np.argmax(ff.intensity)] == pytest.approx(angle, abs=2 * np.pi / 36)
+    assert ff.intensity.min() < 1e-3 * ff.intensity.max()
+
+
+def test_far_field_errors():
+    grid = so.Grid2d(((-4, 4), (-4, 4)), 32, so.ConstantPotential(0.0), so.Gaussian2d(0.0, 0.0, 1.0))
+    with pytest.raises(ValueError, match="no data"):
+        _ = FarField(2.0, 0.5).intensity
+    with pytest.raises(ValueError, match="angular bins"):
+        FarField(1.0, 0.01, n_angles=360)(grid)
+    with pytest.raises(ValueError, match="2d"):
+        FarField(1.0, 0.5)(oscillator_grid())
 
 
 def test_flux_measures_transmission():
