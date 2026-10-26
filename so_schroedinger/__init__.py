@@ -4,10 +4,11 @@ equation.
 All quantities are in (Hartree) atomic units, hbar = m = 1.
 """
 
-from . import analyzers, plotting
+from . import analyzers, phasespace, plotting
 from .animation import animate1d, animate2d
 from .eigenstates import *
 from .grid import *
+from .phasespace import *
 from .potentials import *
 from .timeprop import *
 from .wavepackets import *

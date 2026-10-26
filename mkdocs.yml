@@ -29,6 +29,7 @@ nav:
       - Potentials: api/potentials.md
       - Wavepackets: api/wavepackets.md
       - Analyzers: api/analyzers.md
+      - Phase space: api/phasespace.md
       - Plotting: api/plotting.md
       - Animation: api/animation.md
 

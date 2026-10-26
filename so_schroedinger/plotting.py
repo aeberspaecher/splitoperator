@@ -6,6 +6,7 @@ axes and returns what it drew, so the plot can be refined afterwards:
 >>> so.plotting.plot1d(grid)  # |psi|^2 with the potential in the background
 >>> so.plotting.plot2d(grid, kind="phase", potential_levels=3)
 >>> so.plotting.plot_eigenstates(grid, states, energies)
+>>> so.plotting.plot_phase_space(*so.wigner(grid))
 """
 
 import matplotlib.pyplot as plt
@@ -14,7 +15,7 @@ import numpy as np
 from .animation import complex_to_rgb
 
 # list of exported names:
-__all__ = ["plot1d", "plot2d", "plot_momentum", "plot_eigenstates"]
+__all__ = ["plot1d", "plot2d", "plot_momentum", "plot_eigenstates", "plot_phase_space"]
 
 _KINDS = ("density", "abs", "phase", "real")
 
@@ -181,3 +182,44 @@ def plot_eigenstates(grid, states, energies, ax=None, scale=None, potential=True
         ax.plot(grid.x_vals, np.real(grid.V), "k", lw=0.8)
     ax.set(xlabel="$x$", ylabel=r"$\vert\varphi_n\vert^2 + E_n$")
     return lines
+
+
+def plot_phase_space(x, p, W, ax=None, vmax=None, **kwargs):
+    r"""Show a phase space function such as the Wigner function as an image
+    over $(x, p)$.
+
+    Functions with negative values are drawn with a diverging colormap
+    centered at zero (red positive, blue negative), non-negative ones such as
+    the Husimi function with a sequential one.
+
+    Parameters
+    ----------
+    x, p, W : arrays
+        As returned by ``so.wigner()`` or ``so.husimi()``: ``W[i, j]`` at
+        ``(x[i], p[j])``.
+    ax : matplotlib Axes, optional
+    vmax : float, optional
+        Value for full color; defaults to $\max\vert W\vert$.
+    **kwargs
+        Passed on to ``ax.imshow``, e.g. ``cmap``.
+
+    Returns
+    -------
+    image : matplotlib AxesImage
+    """
+
+    ax = plt.gca() if ax is None else ax
+    W = np.asarray(W)
+    vmax = np.max(np.abs(W)) if vmax is None else vmax
+    if np.min(W) < -1e-3 * vmax:
+        kwargs.setdefault("cmap", "RdBu_r")
+        kwargs.setdefault("vmin", -vmax)
+    else:
+        kwargs.setdefault("cmap", "magma")
+        kwargs.setdefault("vmin", 0.0)
+    dx = x[1] - x[0] if len(x) > 1 else 1.0
+    dp = p[1] - p[0] if len(p) > 1 else 1.0
+    extent = (x[0] - dx / 2, x[-1] + dx / 2, p[0] - dp / 2, p[-1] + dp / 2)
+    image = ax.imshow(W.T, origin="lower", extent=extent, aspect="auto", vmax=vmax, **kwargs)
+    ax.set(xlabel="$x$", ylabel="$p$")
+    return image

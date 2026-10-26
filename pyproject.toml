@@ -48,8 +48,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.pep8-naming]
-# physics notation: potentials V, energies E, radii R, grids X, Y, ...
-ignore-names = ["V", "dV", "V*", "_V*", "E*", "_E*", "R", "_R", "X", "Y", "L*", "_L*", "A*", "_A*", "C", "N", "T*", "Psi*", "delta_E", "*_E"]
+# physics notation: potentials V, energies E, radii R, grids X, Y, phase space functions W, Q, ...
+ignore-names = ["V", "dV", "V*", "_V*", "E*", "_E*", "R", "_R", "X", "Y", "L*", "_L*", "A*", "_A*", "C", "N", "T*", "Psi*", "delta_E", "*_E", "W*", "_W", "Q", "X*", "P*", "dA"]
 
 [tool.ruff.lint.per-file-ignores]
 "so_schroedinger/__init__.py" = ["F401", "F403"]  # re-exports
