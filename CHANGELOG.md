@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- New notebook: double slit in 2d.
+
 ## 0.5.0
 
 First release on PyPI.
