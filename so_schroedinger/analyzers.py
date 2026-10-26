@@ -19,6 +19,7 @@ may change after each call. None of them plots or prints anything.
 
 import numpy as np
 from scipy.integrate import cumulative_trapezoid, trapezoid
+from scipy.interpolate import RegularGridInterpolator
 from scipy.signal import get_window
 
 from .phasespace import husimi, wigner
@@ -329,22 +330,19 @@ class IntegratedDensity(Analyzer):
     r"""Time integrated density $\int |\psi(\mathbf{r}, t)|^2\,\mathrm{d}t$.
 
     Shows where a wave has been, e.g. the branches of branched flow.
-
-    Parameters
-    ----------
-    mask : boolean array, optional
-        Integrate only at the grid points where ``mask`` is True, which
-        saves memory and time if only a region matters; ``density`` then
-        holds the values at these points, in the order of ``grid.psi[mask]``.
+    Subclasses integrate other densities by overriding ``_density(grid)``.
     """
 
-    def __init__(self, mask=None):
-        self.mask = None if mask is None else np.asarray(mask, dtype=bool)
+    def __init__(self):
         self._acc = None
         self._trapezoid = _Trapezoid()
 
+    def _density(self, grid):
+        """The density to integrate, from the grid at its current time."""
+        return grid.density
+
     def add_data(self, grid):
-        rho = grid.density if self.mask is None else np.abs(grid.psi[self.mask]) ** 2
+        rho = self._density(grid)
         if self._acc is None:
             self._acc = np.zeros(np.shape(rho))
         done = self._trapezoid.push(grid.t, rho)
@@ -360,65 +358,87 @@ class IntegratedDensity(Analyzer):
         return self._acc if last is None else self._acc + last[2] * last[1]
 
 
-class FarField(Analyzer):
-    r"""Angular distribution of the emission from a cavity or scatterer:
-    the time integrated density on a ring around ``center``, averaged over
-    angular bins, $I(\varphi) \propto \int |\psi(r, \varphi, t)|^2\,\mathrm{d}t$
-    for $|r - r_0| < \delta r/2$. 2d only.
+class FarField(IntegratedDensity):
+    r"""Far field of the waves emitted by a cavity or scatterer at ``center``.
+    2d only.
 
-    Far from the source, an outgoing wave at energy $E = k^2/2$ carries the
-    radial flux $k |\psi|^2$, so $I(\varphi)$ is the emitted probability per
-    angle, the far field. The ring should lie well outside the source (a few
-    wavelengths at least) and inside the absorber, and the propagation
-    should last until the emission has passed the ring. Waves reflected by
-    the absorber are counted as well.
+    Far from its source, a wave moves along its momentum, so the far field
+    is the distribution of the momentum directions of the emitted wave.
+    The analyzer takes the wave in a ring $r_\mathrm{min} < |\mathbf{r} -
+    \mathbf{r}_c| < r_\mathrm{max}$ (with edges smoothed over ``edge``),
+    which excludes the source, Fourier transforms it and integrates the
+    momentum density $|\tilde\psi(\mathbf{k}, t)|^2$ over time. Every part
+    of the emitted wave crosses the ring once, in the same time for every
+    direction, so
+
+    $$I(\varphi) = \int_{k_\mathrm{min}}^{k_\mathrm{max}} \int
+    |\tilde\psi(k\cos\varphi, k\sin\varphi, t)|^2\,\mathrm{d}t\;k\,\mathrm{d}k$$
+
+    is proportional to the probability emitted per angle $\varphi$. The
+    time integrated momentum density itself is in ``density``, on the
+    momenta ``(grid.kx_vals, grid.ky_vals)`` in FFT order.
+
+    The ring should start a few wavelengths outside the source, so that
+    evanescent fields are excluded, end inside the absorber, and be wide
+    enough to resolve the angles: its width $\Delta r$ blurs them by about
+    $1/(k\Delta r)$. The propagation should last until the emission has
+    passed the ring. Waves reflected back from the absorber are counted as
+    well.
 
     Parameters
     ----------
-    radius : float
-        Radius $r_0$ of the ring.
-    width : float
-        Width $\delta r$ of the ring; at least a few grid spacings, so that
-        every angular bin holds grid points.
+    r_min, r_max : float
+        Radii of the ring.
     center : tuple of float, optional
-        Center of the ring.
+        Center $\mathbf{r}_c$ of the ring.
+    k_range : tuple of float, optional
+        Range of $|\mathbf{k}|$ in $I(\varphi)$, e.g. around the wavenumber
+        of an emitting mode. Defaults to all momenta on the grid.
     n_angles : int, optional
-        Number of angular bins on $[-\pi, \pi)$.
+        Number of angles $\varphi$ on $[-\pi, \pi)$.
+    edge : float, optional
+        Width of the smoothed edges; defaults to an eighth of the ring
+        width.
     """
 
-    def __init__(self, radius, width, center=(0.0, 0.0), n_angles=180):
-        self.radius, self.width = float(radius), float(width)
+    def __init__(self, r_min, r_max, center=(0.0, 0.0), k_range=None, n_angles=360, edge=None):
+        super().__init__()
+        self.r_min, self.r_max = float(r_min), float(r_max)
         self.center = (float(center[0]), float(center[1]))
+        self.k_range = k_range
         self.n_angles = int(n_angles)
-        self._integrated = None
-        self._bin = None
-        self._count = None
+        self.edge = (self.r_max - self.r_min) / 8 if edge is None else float(edge)
+        self._window = None
+        self._k = None
 
-    def add_data(self, grid):
+    def _density(self, grid):
         if grid.dim != 2:
             raise ValueError(f"{type(self).__name__} works on 2d grids only")
-        if self._integrated is None:
-            x, y = grid.X - self.center[0], grid.Y - self.center[1]
-            mask = np.abs(np.hypot(x, y) - self.radius) < self.width / 2
-            phi = np.arctan2(y[mask], x[mask])
-            self._bin = np.minimum(((phi + np.pi) / (2 * np.pi) * self.n_angles).astype(int), self.n_angles - 1)
-            self._count = np.bincount(self._bin, minlength=self.n_angles)
-            if np.any(self._count == 0):
-                raise ValueError("some angular bins hold no grid points; use a wider ring or fewer angles")
-            self._integrated = IntegratedDensity(mask)
-        self._integrated.add_data(grid)
+        if self._window is None:
+            r = np.hypot(grid.X - self.center[0], grid.Y - self.center[1])
+            self._window = (1 + np.tanh((r - self.r_min) / self.edge)) * (1 - np.tanh((r - self.r_max) / self.edge)) / 4
+            self._k = (grid.kx_vals, grid.ky_vals)
+            self._norm = grid.dV**2 / (4 * np.pi**2)  # psi(k) = dV/(2 pi) sum_r psi(r) exp(-ikr)
+        return np.abs(np.fft.fft2(self._window * grid.psi)) ** 2 * self._norm
 
     @property
     def angles(self):
-        r"""Centers of the angular bins, in $[-\pi, \pi)$."""
-        return -np.pi + (np.arange(self.n_angles) + 0.5) * 2 * np.pi / self.n_angles
+        r"""The angles $\varphi$, in $[-\pi, \pi)$."""
+        return -np.pi + np.arange(self.n_angles) * 2 * np.pi / self.n_angles
 
     @property
     def intensity(self):
-        r"""$I(\varphi)$: the integrated density averaged over each bin."""
-        if self._integrated is None:
-            raise ValueError("no data has been added yet")
-        return np.bincount(self._bin, self._integrated.density, minlength=self.n_angles) / self._count
+        r"""$I(\varphi)$ at ``angles``."""
+        rho = np.fft.fftshift(self.density)
+        kx, ky = np.fft.fftshift(self._k[0]), np.fft.fftshift(self._k[1])
+        k_max = min(-kx[0], -ky[0])
+        k_min, k_max = (0.0, k_max) if self.k_range is None else self.k_range
+        dk = min(kx[1] - kx[0], ky[1] - ky[0]) / 2
+        k = np.arange(k_min + dk / 2, k_max, dk)
+        phi = self.angles
+        interp = RegularGridInterpolator((kx, ky), rho, bounds_error=False, fill_value=0.0)
+        points = np.stack(np.broadcast_arrays(k[None, :] * np.cos(phi[:, None]), k[None, :] * np.sin(phi[:, None])), -1)
+        return np.sum(interp(points) * k, axis=1) * dk
 
 
 class Flux(Analyzer):
