@@ -38,6 +38,7 @@ __all__ = [
     "HarmOscPot2d",
     "GaussBump2d",
     "StadiumPotential2d",
+    "LimaconPotential2d",
     "RandomPotential2d",
     "BoundaryAbsorber2d",
 ]
@@ -798,6 +799,86 @@ class StadiumPotential2d(Potential2d):
 
     def V(self, r, t):
         return 0.5 * self._V0 * (1 + np.tanh(self.signed_distance(r) / self._w)) + 0.0j
+
+
+class LimaconPotential2d(Potential2d):
+    r"""Billiard or dielectric cavity shaped like Pascal's limaçon,
+    $\rho(\varphi) = R\,(1 + \varepsilon\cos\varphi)$ in polar coordinates
+    around $(x_0, y_0)$.
+
+    The potential is $V_\mathrm{in}$ inside and $V_\mathrm{out}$ outside,
+    with walls smoothed over a width $w$:
+    $V = V_\mathrm{in} + (V_\mathrm{out} - V_\mathrm{in})/2\,(1 + \tanh(d/w))$,
+    where $d$ is an approximate signed distance to the boundary (negative
+    inside, exact on the boundary to first order). For $\varepsilon = 0$ the
+    limaçon is a circle; for $\varepsilon > 1/4$ it has a dimple at
+    $\varphi = \pi$; for $\varepsilon < 1$ it has no inner loop.
+
+    A large $V_\mathrm{out}$ gives a billiard. A well,
+    $V_\mathrm{in} < V_\mathrm{out} = 0$, models a dielectric cavity: the
+    Schroedinger equation $(\nabla^2 + 2(E - V))\psi = 0$ at energy
+    $E = k^2/2$ is the Helmholtz equation $(\nabla^2 + n^2 k^2)\psi = 0$ of
+    TM polarized light with refractive index $n$ inside and 1 outside if
+    $V_\mathrm{in} = (1 - n^2) E$, see ``dielectric()``. The analogy holds
+    at that one energy only: a state at energy $E'$ sees the index
+    $n' = \sqrt{(E' - V_\mathrm{in})/E'}$. With $n = 3.3$ and $\varepsilon \approx 0.43$
+    the limaçon combines high-Q whispering gallery modes with directional
+    emission, cmp. Wiersig and Hentschel, Phys. Rev. Lett. 100, 033901 (2008).
+    """
+
+    is_time_dependent = False
+
+    def __init__(self, R, eps, V_in, V_out=0.0, w=0.02, x0=0.0, y0=0.0):
+        """Create a limaçon potential.
+
+        Parameters
+        ----------
+        R : float
+            Radius parameter.
+        eps : float
+            Deformation $\varepsilon$, between 0 (circle) and 1.
+        V_in : float
+            Potential inside.
+        V_out : float, optional
+            Potential outside.
+        w : float, optional
+            Width of the smoothed walls.
+        x0, y0 : float, optional
+            Pole of the limaçon, the origin of $\varphi$.
+        """
+
+        self._R, self._eps, self._w = float(R), float(eps), float(w)
+        self._V_in, self._V_out = float(V_in), float(V_out)
+        self._x0, self._y0 = float(x0), float(y0)
+
+    @classmethod
+    def dielectric(cls, R, eps, n, E, w=0.02, x0=0.0, y0=0.0):
+        """Dielectric cavity with refractive index ``n`` in vacuum, for the
+        energy ``E``: a well of depth $(n^2 - 1) E$."""
+
+        return cls(R, eps, (1.0 - float(n) ** 2) * float(E), 0.0, w, x0, y0)
+
+    def boundary(self, phi):
+        """Points $(x, y)$ of the boundary at the polar angles ``phi``."""
+
+        phi = np.asarray(phi, dtype=float)
+        rho = self._R * (1 + self._eps * np.cos(phi))
+        return self._x0 + rho * np.cos(phi), self._y0 + rho * np.sin(phi)
+
+    def signed_distance(self, r):
+        r"""Approximate signed distance to the boundary (negative inside):
+        $(r - \rho(\varphi))/\sqrt{1 + (\rho'(\varphi)/r)^2}$."""
+
+        x, y = r
+        x, y = np.asarray(x) - self._x0, np.asarray(y) - self._y0
+        dist, phi = np.hypot(x, y), np.arctan2(y, x)
+        rho = self._R * (1 + self._eps * np.cos(phi))
+        drho = -self._R * self._eps * np.sin(phi)
+        return (dist - rho) / np.sqrt(1 + (drho / np.maximum(dist, 1e-12)) ** 2)
+
+    def V(self, r, t):
+        step = 0.5 * (1 + np.tanh(self.signed_distance(r) / self._w))
+        return self._V_in + (self._V_out - self._V_in) * step + 0.0j
 
 
 class RandomPotential2d(Potential2d):

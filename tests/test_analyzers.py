@@ -6,6 +6,7 @@ from so_schroedinger.analyzers import (
     AutoCorrelation,
     EigenfunctionBuilder,
     EigenstateFilter,
+    FarField,
     Flux,
     IntegratedDensity,
     Observables,
@@ -132,6 +133,45 @@ def test_integrated_density():
     so.SplitOperator().propagate(grid, 0.01, 300, callback=acc, every=3)
     assert np.sum(acc.density) * grid.dx == pytest.approx(3.0)
     assert np.sum(acc.density) * grid.dx == pytest.approx(3.0)  # reading does not change the result
+
+
+def far_field_of(psi0, **kwargs):
+    size = ((-16.0, 16.0), (-16.0, 16.0))
+    absorber = so.BoundaryAbsorber2d(size, width=4.0, strength=5.0)
+    grid = so.Grid2d(size, 128, so.ConstantPotential(0.0), psi0, absorber=absorber)
+    ff = FarField(4.0, 10.0, **kwargs)
+    ff(grid)
+    so.SplitOperator().propagate(grid, 0.02, 400, callback=ff, every=2)
+    return ff
+
+
+def test_far_field_isotropic():
+    # a ring shaped packet at rest spreads equally in all directions
+    ff = far_field_of(so.Gaussian2d(0.0, 0.0, 0.5), n_angles=36)
+    assert ff.angles.shape == ff.intensity.shape == (36,)
+    assert ff.angles[0] == pytest.approx(-np.pi)
+    assert ff.intensity == pytest.approx(np.full(36, np.mean(ff.intensity)), rel=0.05)
+
+
+def test_far_field_direction_and_normalization():
+    angle, p = 2.0, 3.0
+    psi0 = so.Gaussian2d(-3.0 * np.cos(angle), -3.0 * np.sin(angle), 1.0, px=p * np.cos(angle), py=p * np.sin(angle))
+    ff = far_field_of(psi0, k_range=(1.0, 6.0))
+    assert ff.angles[np.argmax(ff.intensity)] == pytest.approx(angle, abs=np.radians(2))
+    # the packet crosses the ring at speed p, so its time integrated probability there is
+    # the integral of the squared window over r, divided by p (a little more for the spread of speeds)
+    r = np.linspace(0.0, 20.0, 2001)
+    window = (1 + np.tanh((r - 4.0) / ff.edge)) * (1 - np.tanh((r - 10.0) / ff.edge)) / 4
+    total = np.sum(ff.intensity) * 2 * np.pi / ff.n_angles
+    assert total == pytest.approx(np.sum(window**2) * (r[1] - r[0]) / p, rel=0.05)
+    assert ff.density.shape == (128, 128)
+
+
+def test_far_field_errors():
+    with pytest.raises(ValueError, match="no data"):
+        _ = FarField(2.0, 3.0).intensity
+    with pytest.raises(ValueError, match="2d"):
+        FarField(1.0, 2.0)(oscillator_grid())
 
 
 def test_flux_measures_transmission():

@@ -10,14 +10,16 @@ directly as ``callback`` to ``SplitOperator.propagate()`` or in the
 >>> prop.propagate(grid, dt, n_steps, callback=obs, every=10)
 >>> obs.t, obs.position
 
-All analyzers except ``Wigner`` and ``Husimi`` (1d only) work on 1d and 2d grids. Time integrals use the trapezoidal
-rule on the sample times, which need not be equidistant (except for
+All analyzers except ``Wigner``, ``Husimi`` (1d only) and ``FarField`` (2d
+only) work on 1d and 2d grids. Time integrals use the trapezoidal rule on the
+sample times, which need not be equidistant (except for
 ``AutoCorrelation.spectrum()``). Analyzers copy what they need, so the grid
 may change after each call. None of them plots or prints anything.
 """
 
 import numpy as np
 from scipy.integrate import cumulative_trapezoid, trapezoid
+from scipy.interpolate import RegularGridInterpolator
 from scipy.signal import get_window
 
 from .phasespace import husimi, wigner
@@ -30,6 +32,7 @@ __all__ = [
     "EigenstateFilter",
     "EigenfunctionBuilder",
     "IntegratedDensity",
+    "FarField",
     "Flux",
     "Wigner",
     "Husimi",
@@ -327,16 +330,22 @@ class IntegratedDensity(Analyzer):
     r"""Time integrated density $\int |\psi(\mathbf{r}, t)|^2\,\mathrm{d}t$.
 
     Shows where a wave has been, e.g. the branches of branched flow.
+    Subclasses integrate other densities by overriding ``_density(grid)``.
     """
 
     def __init__(self):
         self._acc = None
         self._trapezoid = _Trapezoid()
 
+    def _density(self, grid):
+        """The density to integrate, from the grid at its current time."""
+        return grid.density
+
     def add_data(self, grid):
+        rho = self._density(grid)
         if self._acc is None:
-            self._acc = np.zeros(np.shape(grid.psi))
-        done = self._trapezoid.push(grid.t, grid.density)
+            self._acc = np.zeros(np.shape(rho))
+        done = self._trapezoid.push(grid.t, rho)
         if done is not None:
             self._acc += done[2] * done[1]
 
@@ -347,6 +356,89 @@ class IntegratedDensity(Analyzer):
             raise ValueError("no data has been added yet")
         last = self._trapezoid.last()
         return self._acc if last is None else self._acc + last[2] * last[1]
+
+
+class FarField(IntegratedDensity):
+    r"""Far field of the waves emitted by a cavity or scatterer at ``center``.
+    2d only.
+
+    Far from its source, a wave moves along its momentum, so the far field
+    is the distribution of the momentum directions of the emitted wave.
+    The analyzer takes the wave in a ring $r_\mathrm{min} < |\mathbf{r} -
+    \mathbf{r}_c| < r_\mathrm{max}$ (with edges smoothed over ``edge``),
+    which excludes the source, Fourier transforms it and integrates the
+    momentum density $|\tilde\psi(\mathbf{k}, t)|^2$ over time. Every part
+    of the emitted wave crosses the ring once, in the same time for every
+    direction, so
+
+    $$I(\varphi) = \int_{k_\mathrm{min}}^{k_\mathrm{max}} \int
+    |\tilde\psi(k\cos\varphi, k\sin\varphi, t)|^2\,\mathrm{d}t\;k\,\mathrm{d}k$$
+
+    is proportional to the probability emitted per angle $\varphi$. The
+    time integrated momentum density itself is in ``density``, on the
+    momenta ``(grid.kx_vals, grid.ky_vals)`` in FFT order.
+
+    The ring should start a few wavelengths outside the source, so that
+    evanescent fields are excluded, end inside the absorber, and be wide
+    enough to resolve the angles: its width $\Delta r$ blurs them by about
+    $1/(k\Delta r)$. The propagation should last until the emission has
+    passed the ring. Waves reflected back from the absorber are counted as
+    well.
+
+    Parameters
+    ----------
+    r_min, r_max : float
+        Radii of the ring.
+    center : tuple of float, optional
+        Center $\mathbf{r}_c$ of the ring.
+    k_range : tuple of float, optional
+        Range of $|\mathbf{k}|$ in $I(\varphi)$, e.g. around the wavenumber
+        of an emitting mode. Defaults to all momenta on the grid.
+    n_angles : int, optional
+        Number of angles $\varphi$ on $[-\pi, \pi)$.
+    edge : float, optional
+        Width of the smoothed edges; defaults to an eighth of the ring
+        width.
+    """
+
+    def __init__(self, r_min, r_max, center=(0.0, 0.0), k_range=None, n_angles=360, edge=None):
+        super().__init__()
+        self.r_min, self.r_max = float(r_min), float(r_max)
+        self.center = (float(center[0]), float(center[1]))
+        self.k_range = k_range
+        self.n_angles = int(n_angles)
+        self.edge = (self.r_max - self.r_min) / 8 if edge is None else float(edge)
+        self._window = None
+        self._k = None
+
+    def _density(self, grid):
+        if grid.dim != 2:
+            raise ValueError(f"{type(self).__name__} works on 2d grids only")
+        if self._window is None:
+            r = np.hypot(grid.X - self.center[0], grid.Y - self.center[1])
+            self._window = (1 + np.tanh((r - self.r_min) / self.edge)) * (1 - np.tanh((r - self.r_max) / self.edge)) / 4
+            self._k = (grid.kx_vals, grid.ky_vals)
+            self._norm = grid.dV**2 / (4 * np.pi**2)  # psi(k) = dV/(2 pi) sum_r psi(r) exp(-ikr)
+        return np.abs(np.fft.fft2(self._window * grid.psi)) ** 2 * self._norm
+
+    @property
+    def angles(self):
+        r"""The angles $\varphi$, in $[-\pi, \pi)$."""
+        return -np.pi + np.arange(self.n_angles) * 2 * np.pi / self.n_angles
+
+    @property
+    def intensity(self):
+        r"""$I(\varphi)$ at ``angles``."""
+        rho = np.fft.fftshift(self.density)
+        kx, ky = np.fft.fftshift(self._k[0]), np.fft.fftshift(self._k[1])
+        k_max = min(-kx[0], -ky[0])
+        k_min, k_max = (0.0, k_max) if self.k_range is None else self.k_range
+        dk = min(kx[1] - kx[0], ky[1] - ky[0]) / 2
+        k = np.arange(k_min + dk / 2, k_max, dk)
+        phi = self.angles
+        interp = RegularGridInterpolator((kx, ky), rho, bounds_error=False, fill_value=0.0)
+        points = np.stack(np.broadcast_arrays(k[None, :] * np.cos(phi[:, None]), k[None, :] * np.sin(phi[:, None])), -1)
+        return np.sum(interp(points) * k, axis=1) * dk
 
 
 class Flux(Analyzer):
