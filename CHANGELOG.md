@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- New notebook: double slit in 2d.
+- New notebooks: double slit in 2d; double well with Rabi oscillations and
+  coherent destruction of tunneling.
 
 ## 0.5.0
 
