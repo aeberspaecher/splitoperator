@@ -10,7 +10,7 @@ directly as ``callback`` to ``SplitOperator.propagate()`` or in the
 >>> prop.propagate(grid, dt, n_steps, callback=obs, every=10)
 >>> obs.t, obs.position
 
-All analyzers work on 1d and 2d grids. Time integrals use the trapezoidal
+All analyzers except ``Wigner`` and ``Husimi`` (1d only) work on 1d and 2d grids. Time integrals use the trapezoidal
 rule on the sample times, which need not be equidistant (except for
 ``AutoCorrelation.spectrum()``). Analyzers copy what they need, so the grid
 may change after each call. None of them plots or prints anything.
@@ -19,6 +19,8 @@ may change after each call. None of them plots or prints anything.
 import numpy as np
 from scipy.integrate import cumulative_trapezoid, trapezoid
 from scipy.signal import get_window
+
+from .phasespace import husimi, wigner
 
 # list of exported names:
 __all__ = [
@@ -29,6 +31,8 @@ __all__ = [
     "EigenfunctionBuilder",
     "IntegratedDensity",
     "Flux",
+    "Wigner",
+    "Husimi",
 ]
 
 
@@ -410,3 +414,65 @@ class Flux(Analyzer):
     def cumulative(self):
         """Probability that has passed, at each sample time."""
         return cumulative_trapezoid(self.flux, self.t, initial=0.0)
+
+
+class Wigner(Analyzer):
+    r"""Record the Wigner function $W(x, p)$ at each call, see
+    ``so_schroedinger.phasespace.wigner()``. 1d only.
+
+    Each snapshot needs ``len(x) * len(p)`` floats (2N² for the full range on
+    N grid points), so ``x_lim`` and ``p_lim`` help for many snapshots.
+
+    Parameters
+    ----------
+    x_lim, p_lim : tuple of float, optional
+        Phase space window to record.
+    """
+
+    def __init__(self, x_lim=None, p_lim=None):
+        self.x_lim, self.p_lim = x_lim, p_lim
+        self.x = self.p = None
+        self._t = []
+        self._W = []
+
+    def _compute(self, grid):
+        return wigner(grid, x_lim=self.x_lim, p_lim=self.p_lim)
+
+    def add_data(self, grid):
+        if grid.dim != 1:
+            raise ValueError(f"{type(self).__name__} works on 1d grids only")
+        self.x, self.p, W = self._compute(grid)
+        self._t.append(grid.t)
+        self._W.append(W)
+
+    @property
+    def t(self):
+        """Sample times."""
+        return np.array(self._t)
+
+    @property
+    def W(self):
+        """Snapshots, ``W[n, i, j]`` at time ``t[n]`` and ``(x[i], p[j])``."""
+        return np.array(self._W)
+
+
+class Husimi(Wigner):
+    r"""Record the Husimi function $Q(x, p)$ at each call, see
+    ``so_schroedinger.phasespace.husimi()``. 1d only.
+
+    The snapshots are in ``W``, as for ``Wigner``.
+
+    Parameters
+    ----------
+    sigma : float, optional
+        Position width of the coherent states.
+    x_lim, p_lim : tuple of float, optional
+        Phase space window to record.
+    """
+
+    def __init__(self, sigma=1.0, x_lim=None, p_lim=None):
+        super().__init__(x_lim, p_lim)
+        self.sigma = float(sigma)
+
+    def _compute(self, grid):
+        return husimi(grid, sigma=self.sigma, x_lim=self.x_lim, p_lim=self.p_lim)

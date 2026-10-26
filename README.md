@@ -137,6 +137,21 @@ E, spectrum = corr.spectrum()  # peaks at the eigenenergies
 - `IntegratedDensity`: ∫|ψ|² dt
 - `Flux`: probability flux through a point (1d) or line (2d), and its time
   integral, e.g. the transmission through a barrier
+- `Wigner`, `Husimi`: snapshots of the phase space functions below (1d)
+
+## Phase space
+
+`so.wigner(grid)` and `so.husimi(grid, sigma=...)` return the Wigner
+function W(x, p) and the Husimi function Q(x, p) of a 1d wavefunction as
+`x, p, W` with `W[i, j]` at `(x[i], p[j])`. Both are normalized to
+∫∫ W dx dp = 1; W can be negative where parts of the wavefunction
+interfere, Q is the Wigner function smoothed over a coherent state and never
+negative.
+
+```python
+x, p, W = so.wigner(grid, x_lim=(-6, 6), p_lim=(-5, 5))
+so.plotting.plot_phase_space(x, p, W)  # diverging colors if W < 0 somewhere
+```
 
 ## Plotting
 
@@ -149,6 +164,7 @@ so.plotting.plot1d(grid)  # |ψ|² over the scaled potential
 so.plotting.plot2d(grid, kind="phase", potential_levels=3)  # also "density", "abs", "real"
 so.plotting.plot_momentum(grid)  # |ψ(k)|², 1d or 2d
 so.plotting.plot_eigenstates(grid, states, energies)  # |φₙ|² + Eₙ over V
+so.plotting.plot_phase_space(*so.wigner(grid))  # W(x, p) or Q(x, p)
 ```
 
 ## Animations
@@ -196,6 +212,7 @@ and the animation cells take a while.
 | `08_double_slit.ipynb` | a wavepacket passes a double slit in 2d; the pattern on a screen compared with the Huygens–Fresnel and Fraunhofer predictions, and one slit at a time | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/08_double_slit.ipynb) |
 | `09_double_well.ipynb` | tunneling between the wells of a double well: the splitting from eigenstates, the tunneling oscillation and the spectrum, Rabi oscillations, and coherent destruction of tunneling by a fast drive | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/09_double_well.ipynb) |
 | `10_kicked_rotor.ipynb` | the kicked rotor as a split operator step: classical chaos in the standard map, dynamical localization against classical diffusion, the exponential momentum distribution, and noise that destroys localization | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/10_kicked_rotor.ipynb) |
+| `11_phase_space.ipynb` | Wigner and Husimi functions of coherent, squeezed, excited and cat states; in the harmonic oscillator the Wigner function moves like a classical ensemble, in a quartic oscillator it filaments, interferes and partly revives, unlike the classical one | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/11_phase_space.ipynb) |
 
 To run them locally, install the extras with `pip install ".[notebooks]"` and
 start `jupyter lab notebooks/`.
