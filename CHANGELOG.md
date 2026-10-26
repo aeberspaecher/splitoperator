@@ -14,6 +14,8 @@
 - `FarField` analyzer: the far field of a cavity or scatterer, from the time
   integrated momentum distribution of the wave in a ring around it. It is an
   `IntegratedDensity`, which subclasses can now reuse for other densities.
+- Limaçon notebook: a dielectric microcavity (ε = 0.43, n = 3.3) with
+  whispering gallery modes, their Q factors and directional far field.
 
 - New notebooks: double slit in 2d; double well with Rabi oscillations and
   coherent destruction of tunneling; dynamical localization in the kicked rotor.
