@@ -111,6 +111,27 @@ energies, states = so.lowest_eigenstates(grid, 5)  # 0.5, 1.5, 2.5, ...
 `grid.energy()` gives ⟨H⟩, split into `grid.expectation_kinetic()` and
 `grid.expectation_potential()`.
 
+## Absorbing boundaries
+
+The grid is periodic, so a wave that leaves on one side comes back on the
+other. An absorber passed as `absorber=` to the grid removes it near the edges:
+
+```python
+size = (-50.0, 50.0)
+absorber = so.ManolopoulosAbsorber1d(E_min=0.5, x0=size[0], x1=size[1])
+grid = so.Grid1d(size, 2**11, potential, psi0, absorber=absorber)
+```
+
+- `ManolopoulosAbsorber1d`: transmission-free absorber that reflects less
+  than 1% of all waves above `E_min`, which also sets its width; the default
+  choice
+- `PowerAbsorber1d`: −iη uⁿ in a layer of given width (quadratic by default)
+- `ExpAbsorber1d`: exponential imaginary part, optionally with a real part
+- `MaskAbsorber1d`: multiplies ψ by cos^(1/8) in the layer once per time step
+- `BoundaryAbsorber2d`: quadratic layer along the edges of a 2d grid
+
+Notebook 12 measures their reflection and transmission versus energy.
+
 ## Analyzers
 
 `so_schroedinger.analyzers` collects data during the propagation. Each
@@ -213,6 +234,7 @@ and the animation cells take a while.
 | `09_double_well.ipynb` | tunneling between the wells of a double well: the splitting from eigenstates, the tunneling oscillation and the spectrum, Rabi oscillations, and coherent destruction of tunneling by a fast drive | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/09_double_well.ipynb) |
 | `10_kicked_rotor.ipynb` | the kicked rotor as a split operator step: classical chaos in the standard map, dynamical localization against classical diffusion, the exponential momentum distribution, and noise that destroys localization | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/10_kicked_rotor.ipynb) |
 | `11_phase_space.ipynb` | Wigner and Husimi functions of coherent, squeezed, excited and cat states; in the harmonic oscillator the Wigner function moves like a classical ensemble, in a quartic oscillator it filaments, interferes and partly revives, unlike the classical one | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/11_phase_space.ipynb) |
+| `12_absorbers.ipynb` | reflection and transmission of absorbing boundaries versus energy: the transmission-free Manolopoulos absorber, quadratic and exponential absorbers, and a cos^(1/8) mask | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aeberspaecher/splitoperator/blob/main/notebooks/12_absorbers.ipynb) |
 
 To run them locally, install the extras with `pip install ".[notebooks]"` and
 start `jupyter lab notebooks/`.
@@ -226,7 +248,8 @@ start `jupyter lab notebooks/`.
 - `so_schroedinger.timeprop`: the split operator propagator
 - `so_schroedinger.eigenstates`: ground and excited states from imaginary time
 - `so_schroedinger.analyzers`: expectation values, autocorrelation spectra,
-  eigenstates, time integrated density and flux
+  eigenstates, time integrated density, flux, Wigner and Husimi snapshots
+- `so_schroedinger.phasespace`: Wigner and Husimi functions in 1d
 - `so_schroedinger.animation`: Matplotlib animations of the propagation
 - `so_schroedinger.plotting`: one-line plots of wavefunctions, momentum
   distributions and eigenstates

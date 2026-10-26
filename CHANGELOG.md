@@ -5,6 +5,9 @@
 - Phase space: `so.wigner()` and `so.husimi()` for 1d grids, the analyzers
   `Wigner` and `Husimi`, `so.plotting.plot_phase_space()`, and a phase space
   notebook comparing quantum and classical flow.
+- Absorbers: `ManolopoulosAbsorber1d` (transmission-free), `PowerAbsorber1d`
+  and `MaskAbsorber1d` (cos^(1/8) mask), and a notebook that measures
+  reflection and transmission of the absorbers versus energy.
 
 - New notebooks: double slit in 2d; double well with Rabi oscillations and
   coherent destruction of tunneling; dynamical localization in the kicked rotor.
