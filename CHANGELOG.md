@@ -3,7 +3,7 @@
 ## Unreleased
 
 - New notebooks: double slit in 2d; double well with Rabi oscillations and
-  coherent destruction of tunneling.
+  coherent destruction of tunneling; dynamical localization in the kicked rotor.
 
 ## 0.5.0
 
