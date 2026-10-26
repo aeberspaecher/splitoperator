@@ -7,6 +7,7 @@ acts as an absorber.
 
 import numpy as np
 from scipy.interpolate import BarycentricInterpolator
+from scipy.special import expit
 
 # list of exported names:
 __all__ = [
@@ -29,6 +30,9 @@ __all__ = [
     "InterpolatingPotential1d",
     "RandomPotential1d",
     "ExpAbsorber1d",
+    "PowerAbsorber1d",
+    "ManolopoulosAbsorber1d",
+    "MaskAbsorber1d",
     "gaussian_random_field",
     "Potential2d",
     "HarmOscPot2d",
@@ -563,14 +567,159 @@ class ExpAbsorber1d(Potential1d):
     def V(self, x, t):
         x = np.asarray(x, dtype=float)
         real = self._A_real * (
-            self._A_left / (1.0 + np.exp(self._alpha_r * (x - (self._x0 + self._lreal))))
-            + self._A_right / (1.0 + np.exp(-self._alpha_r * (x - (self._x1 - self._lreal))))
+            self._A_left * expit(-self._alpha_r * (x - (self._x0 + self._lreal)))
+            + self._A_right * expit(self._alpha_r * (x - (self._x1 - self._lreal)))
         )
         imag = self._A_imag * (
             self._A_left * np.exp(-np.abs(x - self._x0) / self._limag)
             + self._A_right * np.exp(-np.abs(x - self._x1) / self._limag)
         )
         return real + 1j * imag
+
+
+class _EdgeAbsorber1d(Potential1d):
+    r"""Absorbing layers of width $w$ at the edges of a 1d grid.
+
+    Derived classes implement ``_profile(u)`` for the depth
+    $u = (w - d)/w$ into a layer, with $d$ the distance to the edge: $u = 0$
+    at the inner end of the layer and $u = 1$ at the edge.
+    """
+
+    is_time_dependent = False
+
+    def __init__(self, width, x0, x1, absorb_left=True, absorb_right=True):
+        self.width = float(width)
+        self._x0, self._x1 = float(x0), float(x1)
+        self._left, self._right = bool(absorb_left), bool(absorb_right)
+
+    def V(self, x, t):
+        x = np.asarray(x, dtype=float)
+        V = np.zeros(x.shape, dtype=complex)
+        for absorb, d in ((self._left, x - self._x0), (self._right, self._x1 - x)):
+            if absorb:
+                inside = d < self.width
+                V[inside] += self._profile(1.0 - d[inside] / self.width)
+        return V
+
+    def _profile(self, u):
+        raise NotImplementedError
+
+
+class PowerAbsorber1d(_EdgeAbsorber1d):
+    r"""Complex absorbing potential $-i\eta\,u^n$ in layers at the edges,
+    $u$ rising from 0 to 1 across a layer of width $w$; the 1d counterpart of
+    ``BoundaryAbsorber2d`` (which has $n = 2$).
+
+    Slow waves are reflected by the onset of the potential, fast ones are
+    transmitted through the layer (and come back from the other side of the
+    periodic grid); for a given width, $\eta$ trades one for the other. The
+    reflection is smallest for wavelengths much shorter than $w$. Cmp. Riss
+    and Meyer, J. Phys. B 28, 1475 (1995).
+    """
+
+    def __init__(self, width, strength, x0, x1, power=2, absorb_left=True, absorb_right=True):
+        """Create absorbing layers.
+
+        Parameters
+        ----------
+        width : float
+            Width w of each layer.
+        strength : float
+            Maximum absorption rate eta (positive), reached at the edge.
+        x0, x1 : float
+            Grid boundaries.
+        power : float, optional
+            Exponent n.
+        absorb_left, absorb_right : bool, optional
+            Absorb at the left respectively right boundary of the grid.
+        """
+
+        super().__init__(width, x0, x1, absorb_left, absorb_right)
+        self.strength, self.power = float(strength), float(power)
+
+    def _profile(self, u):
+        return -1j * self.strength * u**self.power
+
+
+class ManolopoulosAbsorber1d(_EdgeAbsorber1d):
+    r"""Transmission-free complex absorbing potential of Manolopoulos,
+    J. Chem. Phys. 117, 9552 (2002).
+
+    The potential $-i\,\frac{1}{2}(2\pi/w)^2 f(y)$ with
+    $f(y) = ay - by^3 + 4/(c - y)^2 - 4/(c + y)^2$ and $y = c\,u$ diverges
+    at the edge, so nothing is transmitted. The width is fixed by the lowest
+    energy to absorb, $w = c/(2\delta k_\mathrm{min})$ with
+    $E_\mathrm{min} = k_\mathrm{min}^2/2$; for $\delta = 0.2$ the
+    reflection is below 1% for all $E > E_\mathrm{min}$ and falls rapidly
+    with energy. The constants are $c = 2.62206$, $a = 1 - 16/c^3$ and
+    $b = (1 - 17/c^3)/c^2$.
+
+    Use it at the edges of the grid. The divergence is cut off at a large
+    finite value, so the grid point on the edge just sets $\psi = 0$ in
+    each step.
+    """
+
+    c = 2.62206
+
+    def __init__(self, E_min, x0, x1, delta=0.2, absorb_left=True, absorb_right=True):
+        r"""Create absorbing layers.
+
+        Parameters
+        ----------
+        E_min : float
+            Lowest kinetic energy that is absorbed well.
+        x0, x1 : float
+            Grid boundaries.
+        delta : float, optional
+            Accuracy parameter; smaller values give a wider layer and less
+            reflection near $E_\mathrm{min}$.
+        absorb_left, absorb_right : bool, optional
+            Absorb at the left respectively right boundary of the grid.
+        """
+
+        self.E_min, self.delta = float(E_min), float(delta)
+        k_min = np.sqrt(2 * self.E_min)
+        super().__init__(self.c / (2 * self.delta * k_min), x0, x1, absorb_left, absorb_right)
+
+    def _profile(self, u):
+        c = self.c
+        a, b = 1 - 16 / c**3, (1 - 17 / c**3) / c**2
+        y = c * np.minimum(u, 1 - 1e-6)
+        f = a * y - b * y**3 + 4 / (c - y) ** 2 - 4 / (c + y) ** 2
+        return -0.5j * (2 * np.pi / self.width) ** 2 * f
+
+
+class MaskAbsorber1d(_EdgeAbsorber1d):
+    r"""Multiply $\psi$ by the mask $\cos^{p}(\pi u/2)$ once per time step,
+    written as the complex potential $i\ln(\cos^{p}(\pi u/2))/\Delta t$.
+
+    Masks are popular in strong-field physics, often with $p = 1/8$, cmp.
+    Krause, Schafer and Kulander, Phys. Rev. A 45, 4998 (1992). Since the
+    mask acts once per step, its effect depends on the time step: use it
+    with the ``dt`` it was made for (with ``SplitOperator(order=4)`` the
+    substeps still add up to one mask per step).
+
+    Parameters
+    ----------
+    width : float
+        Width w of each layer.
+    dt : float
+        Time step of the propagation.
+    x0, x1 : float
+        Grid boundaries.
+    power : float, optional
+        Exponent p.
+    absorb_left, absorb_right : bool, optional
+        Absorb at the left respectively right boundary of the grid.
+    """
+
+    def __init__(self, width, dt, x0, x1, power=1 / 8, absorb_left=True, absorb_right=True):
+        super().__init__(width, x0, x1, absorb_left, absorb_right)
+        self.dt, self.power = float(dt), float(power)
+
+    def _profile(self, u):
+        mask = np.cos(np.pi / 2 * u) ** self.power  # cos(pi/2) is 6e-17 in floating point, not 0
+        return 1j * np.log(mask) / self.dt
 
 
 # -----------------------------------------------------------------------
